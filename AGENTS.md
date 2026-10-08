@@ -8,6 +8,12 @@ Preserve exact commands, identifiers, paths, and quoted source text.
 Before creating or changing a skill, read [skills/README.md](skills/README.md).
 Use the [Agent Skills specification](https://agentskills.io/specification), linked from https://agentskills.io/home, for skill format requirements.
 
+## Repository README maintenance
+
+When adding, changing, renaming, or removing a skill, update [readme.md](readme.md) in the same change.
+Keep the skill list, links, what each skill does, why it exists, and how to use it aligned with the skill files.
+Update prerequisites and example requests when affected. Describe verification commands separately from verified results.
+
 ## Lode Coding
 
 Source: https://github.com/fjzeit/lode/blob/b3dd006ccc5591bea561499647465c795ee55a64/prompts/SystemPrompt.txt
