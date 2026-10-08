@@ -1,0 +1,18 @@
+---
+name: skill-name
+description: "[Describe the task and the requests that should activate this skill.]"
+---
+
+# [Skill title]
+
+## Instructions
+
+[Write the steps needed to complete the task. Include required inputs, constraints, and completion criteria.]
+
+## Examples
+
+[Give a representative request and its expected result.]
+
+## Edge cases
+
+[Describe relevant failure conditions and the required response. Remove this section if it is not needed.]

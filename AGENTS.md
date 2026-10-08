@@ -3,6 +3,11 @@
 Use the repository's simplified-technical-english skill for user-facing text.
 Preserve exact commands, identifiers, paths, and quoted source text.
 
+## Skill creation
+
+Before creating or changing a skill, read [skills/README.md](skills/README.md).
+Use the [Agent Skills specification](https://agentskills.io/specification), linked from https://agentskills.io/home, for skill format requirements.
+
 ## Lode Coding
 
 Source: https://github.com/fjzeit/lode/blob/b3dd006ccc5591bea561499647465c795ee55a64/prompts/SystemPrompt.txt
