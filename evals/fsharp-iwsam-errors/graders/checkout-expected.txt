@@ -1,0 +1,7 @@
+ABC1 x1: ok
+bad sku! x1: bad sku bad sku!
+ZZZ9 x1: discontinued ZZZ9
+ABC1 x9: out of stock ABC1
+ABC1 x1: card expired
+ABC1 x4: declined 40
+smoke test: true

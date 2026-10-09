@@ -29,6 +29,7 @@ Skill evals live in `evals/<skill>/`, outside the skill directory, so installed 
 An eval task must depend on a skill fact that the agent cannot guess or check during a normal build. A cautious agent passed the first `fsharp-native-aot` tasks without the skill, so those tasks measured nothing.
 Graders run the agent's output, for example as a JIT build and as a native exe.
 Before you use a grader, test it against a known good result and a known bad result.
+Text rules in graders reject valid alternatives, for example `and` type declarations or a `Result` return. Prefer checks that run the agent's code. Grade a result folder again with `evals/grade-evals.ps1` after a grader fix.
 Eval workspaces live in the temp directory. A parent `global.json` above this repository pins SDK 8, and a parent `Directory.Packages.props` turns on central package management.
 Graders run `dotnet` from the project directory because `dotnet` selects its SDK from the working directory.
 A run with the skill counts only when the transcript shows that the agent loaded the skill.

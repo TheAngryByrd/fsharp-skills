@@ -28,14 +28,20 @@ function Find-ConflictingSkills {
             $description = (Get-Content $file.FullName -TotalCount 40 -ErrorAction SilentlyContinue | Where-Object { $_ -match '^description\s*:' } | Select-Object -First 1) -as [string]
             $name = $file.Directory.Name
             $hit = $name -eq $Skill -or @($Keywords | Where-Object { $description -match [regex]::Escape($_) }).Count -gt 0
-            if ($hit) { [pscustomobject]@{ Name = $name; Path = $file.Directory.FullName } }
+            if ($hit) { [pscustomobject]@{ Name = $name; Path = $file.Directory.FullName; SkillFile = $file.FullName } }
         }
     }
 }
 
+function Get-InstallName {
+    # A distinct name keeps global copies of the same skill, which can be older, from standing in for the version under test.
+    param([Parameter(Mandatory)][string]$Skill)
+    "$Skill-eval"
+}
+
 function Install-Skill {
     param([Parameter(Mandatory)][string]$SkillDir, [Parameter(Mandatory)][string]$Workspace)
-    $name = Split-Path $SkillDir -Leaf
+    $name = Get-InstallName (Split-Path $SkillDir -Leaf)
     foreach ($base in '.claude/skills', '.agents/skills') {
         $dest = Join-Path $Workspace "$base/$name"
         New-Item -ItemType Directory -Force -Path $dest | Out-Null
@@ -47,6 +53,9 @@ function Install-Skill {
                 New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
                 Copy-Item $_.FullName $target
             }
+        $entry = Join-Path $dest 'SKILL.md'
+        $text = [IO.File]::ReadAllText($entry)
+        [IO.File]::WriteAllText($entry, ([regex]'(?m)^name:\s*\S+').Replace($text, "name: $name", 1))
     }
 }
 
@@ -79,11 +88,12 @@ function Get-IsolatedEnvironment {
 
 function Get-AgentMessage {
     param([string]$Skill, [switch]$WithSkill, [ValidateSet('explicit', 'implicit')][string]$Invocation = 'explicit')
-    if ($WithSkill -and $Invocation -eq 'explicit') { "Use the $Skill skill for this task. $AgentMessage" } else { $AgentMessage }
+    if ($WithSkill -and $Invocation -eq 'explicit') { "Use the $(Get-InstallName $Skill) skill for this task. $AgentMessage" } else { $AgentMessage }
 }
 
 function Get-AgentArguments {
-    param([Parameter(Mandatory)]$Target, [Parameter(Mandatory)][string]$Workspace, [Parameter(Mandatory)][string]$Message, [switch]$WithSkill)
+    param([Parameter(Mandatory)]$Target, [Parameter(Mandatory)][string]$Workspace, [Parameter(Mandatory)][string]$Message,
+        [switch]$WithSkill, [object[]]$HiddenSkills = @())
     switch ($Target.Agent) {
         'claude' {
             $a = @('-p', '--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions', '--no-session-persistence')
@@ -94,6 +104,8 @@ function Get-AgentArguments {
         'codex' {
             $a = @('exec', '--json', '--skip-git-repo-check', '--sandbox', 'danger-full-access', '--ephemeral')
             if ($Target.Model) { $a += @('-m', $Target.Model) }
+            $files = @($HiddenSkills | Where-Object { $_.SkillFile -notmatch '[\\/]\.claude[\\/]' } | ForEach-Object { $_.SkillFile.Replace('\', '/') })
+            if ($files.Count) { $a += @('-c', ('skills.config=[' + (($files | ForEach-Object { "{path='$_',enabled=false}" }) -join ',') + ']')) }
             @{ Args = $a + '-'; Stdin = $Message }
         }
         'opencode' {
@@ -107,7 +119,7 @@ function Get-AgentArguments {
 function Join-Arguments {
     param([string[]]$Arguments)
     ($Arguments | ForEach-Object {
-        if ($_ -match '[\s"]' -or $_ -eq '') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
+        if ($_ -match '[\s",;=&|<>^()]' -or $_ -eq '') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
     }) -join ' '
 }
 
@@ -118,11 +130,12 @@ function Invoke-Agent {
         [Parameter(Mandatory)][string]$RunDir,
         [Parameter(Mandatory)][string]$Message,
         [switch]$WithSkill,
+        [object[]]$HiddenSkills = @(),
         [switch]$Isolate,
         [int]$TimeoutMinutes = 30,
         [switch]$DryRun
     )
-    $spec = Get-AgentArguments -Target $Target -Workspace $Workspace -Message $Message -WithSkill:$WithSkill
+    $spec = Get-AgentArguments -Target $Target -Workspace $Workspace -Message $Message -WithSkill:$WithSkill -HiddenSkills $HiddenSkills
     $argLine = Join-Arguments $spec.Args
     $result = [ordered]@{
         Command = "$($Target.Agent) $argLine"; ExitCode = $null; TimedOut = $false; Seconds = 0
@@ -142,7 +155,15 @@ function Invoke-Agent {
         NoNewWindow            = $true
         PassThru               = $true
     }
-    if ($Isolate) { $startArgs.Environment = Get-IsolatedEnvironment -RunDir $RunDir }
+    $environment = if ($Isolate) { Get-IsolatedEnvironment -RunDir $RunDir } else { @{} }
+    $names = @($HiddenSkills | ForEach-Object Name | Select-Object -Unique)
+    if ($Target.Agent -eq 'opencode' -and $names.Count) {
+        $deny = [ordered]@{}
+        foreach ($n in $names) { $deny[$n] = 'deny' }
+        $environment.OPENCODE_CONFIG_CONTENT = @{ permission = @{ skill = $deny } } | ConvertTo-Json -Depth 5 -Compress
+    }
+    if ($environment.Count) { $startArgs.Environment = $environment }
+    $result.Environment = @($environment.Keys)
 
     $clock = [Diagnostics.Stopwatch]::StartNew()
     # Start-Process without -Wait: -Wait also waits for every descendant, and agent plugins can outlive the agent.
@@ -183,12 +204,20 @@ function Find-TokenObjects($Node) {
 }
 
 function Get-AgentMetrics {
-    param([Parameter(Mandatory)][string]$Agent, [Parameter(Mandatory)][string]$TranscriptPath, [Parameter(Mandatory)][string]$Skill)
-    $m = [ordered]@{ InputTokens = $null; OutputTokens = $null; CostUsd = $null; SkillUsed = $false }
+    param([Parameter(Mandatory)][string]$Agent, [Parameter(Mandatory)][string]$TranscriptPath, [Parameter(Mandatory)][string]$Skill, [switch]$NoGlobalCheck)
+    $m = [ordered]@{ InputTokens = $null; OutputTokens = $null; CostUsd = $null; SkillUsed = $false; GlobalSkillUsed = $false }
+    if (-not $NoGlobalCheck -and (Test-Path $TranscriptPath)) {
+        $installed = Get-InstallName $Skill
+        if ($Skill -ne $installed) {
+            $global = Get-AgentMetrics -Agent $Agent -TranscriptPath $TranscriptPath -Skill $Skill -NoGlobalCheck
+            $m.GlobalSkillUsed = $global.SkillUsed
+        }
+    }
     if (-not (Test-Path $TranscriptPath)) { return [pscustomobject]$m }
     $events = @(ConvertFrom-JsonLines $TranscriptPath)
     # Only tool output with the skill's frontmatter name line, or a completed skill tool call, proves a load.
-    $frontmatter = 'name:\s*' + [regex]::Escape($Skill) + '(?![\w-])'
+    $lookFor = if ($NoGlobalCheck) { $Skill } else { Get-InstallName $Skill }
+    $frontmatter = 'name:\s*' + [regex]::Escape($lookFor) + '(?![\w-])'
 
     switch ($Agent) {
         'claude' {
@@ -202,7 +231,7 @@ function Get-AgentMetrics {
             $skillCalls = @{}
             foreach ($e in $events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'assistant' }) {
                 foreach ($c in @($e.message.content)) {
-                    if ($c.type -eq 'tool_use' -and $c.name -eq 'Skill' -and ($c.input | ConvertTo-Json -Compress) -match [regex]::Escape($Skill)) { $skillCalls[$c.id] = $true }
+                    if ($c.type -eq 'tool_use' -and $c.name -eq 'Skill' -and $c.input.PSObject.Properties['skill'] -and "$($c.input.skill)" -eq $lookFor) { $skillCalls[$c.id] = $true }
                 }
             }
             foreach ($e in $events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'user' }) {
@@ -237,7 +266,7 @@ function Get-AgentMetrics {
             foreach ($e in $events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'tool_use' }) {
                 $state = $e.part.state
                 if ($state.status -ne 'completed') { continue }
-                $isSkillTool = $e.part.tool -eq 'skill' -and "$($state.input.name)" -eq $Skill
+                $isSkillTool = $e.part.tool -eq 'skill' -and $state.input.PSObject.Properties['name'] -and "$($state.input.name)" -eq $lookFor
                 $output = if ($state.PSObject.Properties['output']) { "$($state.output)" } else { '' }
                 if ($isSkillTool -or $output -match $frontmatter) { $m.SkillUsed = $true }
             }
@@ -306,5 +335,5 @@ function Write-Summary {
     $text
 }
 
-Export-ModuleMember -Function ConvertTo-AgentTarget, Get-AgentMessage, Resolve-AgentCommand, Find-ConflictingSkills, Install-Skill,
+Export-ModuleMember -Function ConvertTo-AgentTarget, Get-AgentMessage, Get-InstallName, Resolve-AgentCommand, Find-ConflictingSkills, Install-Skill,
     Initialize-WorkspaceRepo, Invoke-Agent, Get-AgentMetrics, Write-Summary

@@ -1,0 +1,26 @@
+{
+  "skill": "fsharp-env-capabilities",
+  "contaminationKeywords": [
+    "IProvide",
+    "capability interface",
+    "environment pattern"
+  ],
+  "tasks": [
+    {
+      "id": "pinned-leaf",
+      "files": [
+        "inputs/Users.fsx"
+      ],
+      "grader": "graders/pinned-leaf.ps1",
+      "prompt": "Users.fsx passes dependencies as one env object that implements small IProvideX capability interfaces. It fails to compile when the second env calls greetUser. Run it with `dotnet fsi --nowarn:3535 Users.fsx`.\n\nFix it with the smallest change. Keep the IWSAM error type on fetchUser, keep AppEnv and TestEnv as separate types, and do not change the demo at the bottom of the file."
+    },
+    {
+      "id": "deterministic-salt",
+      "files": [
+        "inputs/Accounts.fsx"
+      ],
+      "grader": "graders/deterministic-salt.ps1",
+      "prompt": "Accounts.fsx passes dependencies as one env object that implements small IProvideX capability interfaces. We need a unit-test env for changePassword in which the salt is deterministic: the 16 salt bytes must be 0x01 to 0x10.\n\nAdd a type named TestEnv for that test, and change whatever the design needs. Then append these lines at the end of the file:\n\n```fsharp\nlet testSalt, testHash = changePassword (TestEnv()) 7 \"hunter2\"\nprintfn \"test salt: %s\" (Convert.ToHexString testSalt)\nprintfn \"test hash: %s\" testHash\n```\n\nKeep the production demo working. The script must run with `dotnet fsi Accounts.fsx`."
+    }
+  ]
+}

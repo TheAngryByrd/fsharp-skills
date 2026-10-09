@@ -35,6 +35,7 @@ if (-not (Test-Path (Join-Path $skillDir 'SKILL.md'))) { throw "Skill not found:
 if (-not (Test-Path $evalFile)) { throw "Eval definition not found: $evalFile" }
 
 $spec = Get-Content -Raw $evalFile | ConvertFrom-Json
+$Task = @($Task | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $tasks = @($spec.tasks | Where-Object { $Task.Count -eq 0 -or $_.id -in $Task })
 if ($tasks.Count -eq 0) { throw "No task matches: $($Task -join ', '). Known: $($spec.tasks.id -join ', ')" }
 $targets = @($Target | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { ConvertTo-AgentTarget $_ })
@@ -52,7 +53,7 @@ New-Item -ItemType Directory -Force -Path $root | Out-Null
 if (-not $Isolate) { $contamination = @(Find-ConflictingSkills -Skill $Skill -Keywords @($spec.contaminationKeywords)) }
 if ($contamination.Count -gt 0) {
     Write-Warning ("Runs without the skill can load these global skills: " + (($contamination | ForEach-Object { "$($_.Name) ($($_.Path))" }) -join ', '))
-    Write-Warning 'Claude baseline runs disable all skills. Use -Isolate to hide global skills from Codex and opencode.'
+    Write-Warning 'Codex and opencode runs hide these skills. Claude baselines disable all skills. Claude runs with the skill can still load them.'
 }
 
 $results = [System.Collections.Generic.List[object]]::new()
@@ -65,7 +66,7 @@ foreach ($t in $targets) {
                 $runDir = Join-Path $root ('r{0:d3}' -f $n)
                 $ws = Join-Path $runDir 'ws'
                 New-Item -ItemType Directory -Force -Path $ws | Out-Null
-                foreach ($f in @($taskSpec.files)) { Copy-Item (Join-Path $evalDir $f) $ws }
+                foreach ($f in @($taskSpec.files)) { Copy-Item (Join-Path $evalDir $f) $ws -Recurse }
                 Set-Content -Path (Join-Path $ws 'TASK.md') -Value $taskSpec.prompt -Encoding utf8
                 if ($m -eq 'with') { Install-Skill -SkillDir $skillDir -Workspace $ws }
                 Initialize-WorkspaceRepo $ws
@@ -78,7 +79,7 @@ foreach ($t in $targets) {
                 }
 
                 $message = Get-AgentMessage -Skill $Skill -WithSkill:($m -eq 'with') -Invocation $Invocation
-                $agentRun = Invoke-Agent -Target $t -Workspace $ws -RunDir $runDir -Message $message -WithSkill:($m -eq 'with') `
+                $agentRun = Invoke-Agent -Target $t -Workspace $ws -RunDir $runDir -Message $message -WithSkill:($m -eq 'with') -HiddenSkills $contamination `
                     -Isolate:$Isolate -TimeoutMinutes $TimeoutMinutes -DryRun:$DryRun
                 $info.command = $agentRun.Command
                 if ($DryRun) { $results.Add([pscustomobject]$info); continue }
@@ -91,6 +92,7 @@ foreach ($t in $targets) {
                 $info.outputTokens = $metrics.OutputTokens
                 $info.costUsd = $metrics.CostUsd
                 $info.skillUsed = $metrics.SkillUsed
+                $info.globalSkillUsed = $metrics.GlobalSkillUsed
 
                 $gradeDir = Join-Path $runDir 'grade'
                 New-Item -ItemType Directory -Force -Path $gradeDir | Out-Null
@@ -106,7 +108,8 @@ foreach ($t in $targets) {
                 $info.failed = @($checks | Where-Object { $_.passed -eq $false }).Count
                 $info.skipped = @($checks | Where-Object { $null -eq $_.passed }).Count
                 $info | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $runDir 'run.json') -Encoding utf8
-                if ($m -eq 'with' -and -not $info.skillUsed) { Write-Warning "    The agent did not load $Skill in this run." }
+                if ($m -eq 'with' -and -not $info.skillUsed) { Write-Warning "    The agent did not load $(Get-InstallName $Skill) in this run." }
+                if ($info.globalSkillUsed) { Write-Warning "    The agent loaded a global copy of $Skill in this run." }
                 Write-Host ("    {0}/{1} checks passed, {2} skipped, {3}s, skill used: {4}" -f $info.passed, ($info.passed + $info.failed), $info.skipped, $info.seconds, $info.skillUsed)
                 $results.Add([pscustomobject]$info)
             }

@@ -1,0 +1,6 @@
+ABC1 x2: total 5.0
+bad sku! x1: bad sku bad sku!
+ABC1 x0: bad quantity 0
+ZZZ9 x1: discontinued ZZZ9
+ABC1 x9: out of stock ABC1
+NOPRICE x1: no price NOPRICE

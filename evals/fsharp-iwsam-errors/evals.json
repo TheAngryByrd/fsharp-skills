@@ -1,0 +1,25 @@
+{
+  "skill": "fsharp-iwsam-errors",
+  "contaminationKeywords": [
+    "IWSAM",
+    "static abstract"
+  ],
+  "tasks": [
+    {
+      "id": "fix-checkout",
+      "files": [
+        "inputs/Checkout.fsx"
+      ],
+      "grader": "graders/fix-checkout.ps1",
+      "prompt": "Checkout.fsx uses interfaces with static abstract members (IWSAM) as error types, and the caller picks the concrete ApiError type. It no longer compiles. Run it with `dotnet fsi --nowarn:3535 Checkout.fsx`.\n\nFix it with the smallest changes. Keep the IWSAM error design: do not add Result.mapError, and do not replace the interfaces with a wrapper union. The CardExpired case must describe itself as \"card expired\". Do not change the demo cases at the bottom of the file."
+    },
+    {
+      "id": "iwsam-refactor",
+      "files": [
+        "inputs/Orders.fsx"
+      ],
+      "grader": "graders/iwsam-refactor.ps1",
+      "prompt": "Refactor the error handling in Orders.fsx to IWSAM error trees: each leaf function declares its errors as an interface with static abstract members, composites need no Result.mapError, and the caller picks one concrete edge type.\n\nKeep the demo section at the bottom of the file unchanged. Its output must stay the same. You can change the parameter type of describe to your edge type. The script must run with `dotnet fsi Orders.fsx`."
+    }
+  ]
+}

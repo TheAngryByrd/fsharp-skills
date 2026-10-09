@@ -1,0 +1,18 @@
+{
+  "skill": "optimize-fsharp-typecheck-graph",
+  "contaminationKeywords": [
+    "type-check graph",
+    "GraphBasedChecking",
+    "DumpCheckingGraph"
+  ],
+  "tasks": [
+    {
+      "id": "false-edges",
+      "files": [
+        "inputs/Shop"
+      ],
+      "grader": "graders/false-edges.ps1",
+      "prompt": "Shop/ is an F# project. Use the F# compiler's graph-based type-checking diagnostics to find the file that serializes type checking for no real reason. Then apply the smallest change that removes those false dependencies.\n\nDo not edit Pricing.fs, and keep the program output the same. Nothing outside this project uses the code in Prelude.fs.\n\nSave the compiler's type-check graph from before the change as graph-before.md, and the graph from after the change as graph-after.md, in the current directory. Then write answer.json in exactly this shape:\n{\"bottleneckFile\": \"\", \"cause\": \"\", \"change\": \"\", \"buildFaster\": \"yes\", \"measuredRuns\": 0}\nbuildFaster is \"yes\", \"no\", or \"not shown\", and says whether you showed that the build is faster. measuredRuns is the number of timed builds for each version."
+    }
+  ]
+}

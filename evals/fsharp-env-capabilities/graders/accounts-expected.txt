@@ -1,0 +1,3 @@
+production salt length: 16
+test salt: 0102030405060708090A0B0C0D0E0F10
+test hash: E26B578A370ECFDB

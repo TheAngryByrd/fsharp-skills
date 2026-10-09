@@ -1,0 +1,18 @@
+{
+  "skill": "parse-dont-validate",
+  "contaminationKeywords": [
+    "Parse, Don't Validate",
+    "parse-dont-validate",
+    "smart constructor"
+  ],
+  "tasks": [
+    {
+      "id": "registration",
+      "files": [
+        "inputs/Registration.fsx"
+      ],
+      "grader": "graders/register.ps1",
+      "prompt": "Registration.fsx validates registrations with checks on primitive values in several places. Refactor it so that code after the input boundary cannot hold an invalid registration.\n\nKeep RegistrationDto unchanged. It is the wire contract. Keep the functions fromDto, changeEmail, and register. You can change their types. Report invalid input as Result values, not exceptions. The validation rules stay the same. The script must load with `dotnet fsi`."
+    }
+  ]
+}
