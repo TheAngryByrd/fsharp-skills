@@ -3,7 +3,8 @@
 - [readme.md](readme.md): purpose, session entry, and maintenance contract.
 - [summary.md](summary.md): repository scope.
 - [terminology.md](terminology.md): shared terms.
-- [practices.md](practices.md): skill packaging and verification.
+- [practices.md](practices.md): skill packaging, verification, and eval design.
+- [evals/README.md](../evals/README.md): eval runner usage and grader contract (outside the Lode).
 - `plans/`: roadmaps and open work.
 - `tmp/`: ignored session notes and handovers.
 

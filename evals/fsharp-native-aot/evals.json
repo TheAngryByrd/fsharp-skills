@@ -1,0 +1,40 @@
+{
+  "skill": "fsharp-native-aot",
+  "contaminationKeywords": [
+    "Native AOT",
+    "NativeAOT",
+    "PublishAot"
+  ],
+  "tasks": [
+    {
+      "id": "classify-formatting",
+      "files": [
+        "inputs/Formatting.fs"
+      ],
+      "grader": "graders/classify-formatting.ps1",
+      "prompt": "We are moving a big F# codebase to PublishAot and need the smallest diff. Our lead does not want to touch format calls that already work under Native AOT. For each line marked L1 to L17 in Formatting.fs, decide what happens in the native exe compared to the JIT: \"works\" (same output), \"throws\" (exception), or \"loses data\" (runs but prints less than the JIT). Then give the minimal change for each line that must change.\n\nWrite answer.md with a table: line, verdict, reason, change.\nAlso write answer.json in exactly this shape:\n{\"lines\": [{\"line\": \"L1\", \"verdict\": \"works\", \"change\": \"\"}]}\nInclude all 17 lines. Use only the verdicts works, throws, or loses data. Leave change empty when the line needs no change. When a line must change, put the F# code of the fix in change. When the fix belongs on a type, for example a ToString override, put the type's code in change for each line that the fix corrects."
+    },
+    {
+      "id": "diagnose-symptoms",
+      "files": [],
+      "grader": "graders/diagnose-symptoms.ps1",
+      "prompt": "We shipped our F# service as a Native AOT exe last week. Three bug reports came in, none of them reproduce with `dotnet run`:\n1. Logs that used to say `Order 42 shipped: Shipped \"1Z999\"` now say `Order 42 shipped: Shipped`. The code is `logger.LogInformation($\"Order {o.Id} shipped: {o.Status}\")` where Status is a union.\n2. The /report endpoint returns 500 with `NotSupportedException: 'Microsoft.FSharp.Core.PrintfImpl+Specializations`3[...].CaptureFinal1[System.Double](...)' is missing native code`. The handler builds a line with `let line = sprintf \"Avg: %.2f\" avg`.\n3. A debug dump `sprintf \"%A\" (Map.ofList [1, \"a\"])` now prints `map [(); ()]`.\nA colleague suggests turning on `<ReflectionFree>true</ReflectionFree>` to fix all three. Explain each cause, say whether ReflectionFree fixes it, and give the minimal code fix for each.\n\nWrite answer.md with the explanation.\nAlso write answer.json in exactly this shape:\n{\"bugs\": [{\"bug\": 1, \"cause\": \"\", \"reflectionFreeFixes\": false, \"fix\": \"\"}]}\nInclude bugs 1, 2, and 3. reflectionFreeFixes is a JSON boolean. fix holds the F# code of the minimal fix. For bug 2, fix replaces the whole `let line = ...` binding."
+    },
+    {
+      "id": "logging-rewrite",
+      "files": [
+        "inputs/OrderLogging.fs"
+      ],
+      "grader": "graders/logging-rewrite.ps1",
+      "prompt": "We're turning on PublishAot for our F# order service. Rewrite OrderLogging.fs in place so its log messages and exceptions show the same content under Native AOT as they do today under the JIT. Keep the module name, the types, and the public function signatures. Also write notes.md that explains each change."
+    },
+    {
+      "id": "json-at-scale",
+      "files": [
+        "inputs/Domain.fs"
+      ],
+      "grader": "graders/json-at-scale.ps1",
+      "prompt": "Our F# domain library (sample in Domain.fs) has about 60 record types like these, with option and list fields. We are moving the API to PublishAot. Hand-writing a converter per record type is not acceptable; that is 60 converters to maintain. Set up AOT-safe System.Text.Json serialization for these types. JSON rules: camelCase, None is written as null and read back as None, lists are JSON arrays.\n\nDeliver a solution in the current directory with all project files. Include a console project at App/App.fsproj whose Program.fs serializes a sample Account (with Some and None fields and non-empty lists), deserializes it, prints the JSON on one line, and then prints `roundtrip=True` when the result equals the original. The App project must publish with `dotnet publish App/App.fsproj -c Release -r <rid>` as delivered. Also write notes.md."
+    }
+  ]
+}

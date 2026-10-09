@@ -17,6 +17,22 @@ F# 8 can report `FS0192` on the IWSAM examples. Preserve the SDK file when packa
 The examples use `FsToolkit.ErrorHandling` 5.2.0 for `result`, `validation`, and `taskResult`.
 Do not add the obsolete `FsToolkit.ErrorHandling.TaskResult` package.
 
+The Native AOT proof runner is project-based because `dotnet fsi` cannot publish a native exe.
+Its `scripts/` directory holds `Directory.Build.props`, `Directory.Build.targets`, and `Directory.Packages.props`.
+These files stop parent MSBuild files, such as central package management, from changing the proof.
+`Directory.Build.props` sends `bin` and `obj` to the system temp directory, so an installed skill contains no build output.
+The runner compares each probe's JIT and native results with an expected verdict: `same`, `throws`, or `differs`.
+Each metadata fix needs its own small exe. A fix in a shared exe keeps metadata for every probe in that exe.
+
+Skill evals live in `evals/<skill>/`, outside the skill directory, so installed skills do not carry them.
+[evals/README.md](../evals/README.md) documents the runner, the task format, and the grader contract.
+An eval task must depend on a skill fact that the agent cannot guess or check during a normal build. A cautious agent passed the first `fsharp-native-aot` tasks without the skill, so those tasks measured nothing.
+Graders run the agent's output, for example as a JIT build and as a native exe.
+Before you use a grader, test it against a known good result and a known bad result.
+Eval workspaces live in the temp directory. A parent `global.json` above this repository pins SDK 8, and a parent `Directory.Packages.props` turns on central package management.
+Graders run `dotnet` from the project directory because `dotnet` selects its SDK from the working directory.
+A run with the skill counts only when the transcript shows that the agent loaded the skill.
+
 Check local discovery from the repository root:
 
 ```sh

@@ -1,0 +1,43 @@
+DESC Order 7 for Ada: 12.50 via Card "1234"
+LOG Information | Placed { Id = 7
+  Customer = "Ada"
+  Total = 12.5M
+  Payment = Card "1234"
+  Lines = [("SKU-1", 2); ("SKU-2", 1)] }
+LOG Information | Order 7 for Ada: 12.50 via Card "1234"
+LOG Debug |   line SKU-1 x2
+LOG Debug |   line SKU-2 x1
+VALID ok
+DESC Order 8 for Bob: 100.00 via Invoice 30
+LOG Information | Placed { Id = 8
+  Customer = "Bob"
+  Total = 99.999M
+  Payment = Invoice 30
+  Lines = [] }
+LOG Information | Order 8 for Bob: 100.00 via Invoice 30
+VALID ok
+DESC Order 9 for Cy: 1.00 via Cash
+LOG Information | Placed { Id = 9
+  Customer = "Cy"
+  Total = 1M
+  Payment = Cash
+  Lines = [("X", 5)] }
+LOG Information | Order 9 for Cy: 1.00 via Cash
+LOG Debug |   line X x5
+VALID ok
+DESC Order 10 for Di: 0.00 via Cash
+LOG Information | Placed { Id = 10
+  Customer = "Di"
+  Total = 0M
+  Payment = Cash
+  Lines = [] }
+LOG Information | Order 10 for Di: 0.00 via Cash
+EXN validate Exception: Order 10 has invalid total 0
+DESC Order 11 for Ed: 5.00 via Invoice 120
+LOG Information | Placed { Id = 11
+  Customer = "Ed"
+  Total = 5M
+  Payment = Invoice 120
+  Lines = [] }
+LOG Information | Order 11 for Ed: 5.00 via Invoice 120
+EXN validate Exception: Invoice terms too long: Invoice 120
