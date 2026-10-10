@@ -57,7 +57,7 @@ For compile-time break tests, check the expected diagnostic as well as compilati
 Proof runners reject unexpected compiler errors and preserve the complete inferred signatures for inspection.
 The runners require PowerShell 7.2 or later so redirected native stderr does not terminate expected compiler-failure checks.
 Successful example execution does not assert the printed runtime outcomes. Compare those outcomes with each skill's findings document.
-The `fsharp-failure-paths` proof runner is the exception: `FailurePaths.fsx` compares each outcome with an expected value and exits with code 1 on a mismatch.
+The `fsharp-failure-paths` proof runner is the exception: `FailurePaths.fsx` compares each outcome with an expected value and exits with code 1 on a mismatch. It has no compile-time break tests and prints no inferred signatures.
 
 Example format check, when `skills-ref` is installed:
 

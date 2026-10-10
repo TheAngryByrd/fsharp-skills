@@ -14,8 +14,7 @@ if (-not (Test-Path $source)) {
     return
 }
 $dir = Join-Path $OutDir 'probe'
-New-Item -ItemType Directory -Force -Path $dir | Out-Null
-Copy-Item $source $dir
+Copy-Workspace -Workspace $Workspace -Destination $dir
 Copy-Item (Join-Path $PSScriptRoot 'Probe.fsx') $dir
 
 $probe = Invoke-Capture dotnet @('fsi', 'Probe.fsx') -WorkingDirectory $dir

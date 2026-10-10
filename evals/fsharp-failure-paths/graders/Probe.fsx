@@ -3,6 +3,8 @@
 open Microsoft.FSharp.Reflection
 open Invoice
 
+System.Globalization.CultureInfo.CurrentCulture <- System.Globalization.CultureInfo.InvariantCulture
+
 let caseOf (value: obj) =
     if isNull value then "null"
     elif value :? exn then "exception"

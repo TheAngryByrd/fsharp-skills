@@ -8,7 +8,7 @@ try {
     $exitCode = $LASTEXITCODE
     $output
     $passed = @($output | Where-Object { $_ -like 'PASS *' }).Count
-    if ($exitCode -ne 0 -or $passed -eq 0 -or ($output | Where-Object { $_ -like 'FAIL *' -or $_ -match 'error FS[0-9]+' })) {
+    if ($exitCode -ne 0 -or $passed -eq 0 -or ($output | Where-Object { $_ -like 'FAIL *' -or $_ -match 'error FS[0-9]+:' })) {
         throw "FailurePaths.fsx failed. Exit: $exitCode"
     }
 } finally {
