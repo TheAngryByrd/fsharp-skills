@@ -13,6 +13,8 @@
 - Grader - A script that checks an agent's output and writes `grading.json`.
 - Baseline - An eval run without the skill.
 - Contamination - A global skill on the same subject that a baseline run can load.
+- Rubric - Yes/no questions in an eval task that a judge model answers about the agent's diff.
+- Judge - The separate model command that answers rubric questions. It sees only the diff and the questions.
 - Silent data loss - Native exe output that has less content than the JIT output, with no exception.
 
 Use these terms consistently in [practices](practices.md) and skill documentation. A failure alone does not prove the expected compiler constraint.

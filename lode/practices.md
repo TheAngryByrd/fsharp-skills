@@ -34,6 +34,22 @@ Eval workspaces live in the temp directory. A parent `global.json` above this re
 Graders run `dotnet` from the project directory because `dotnet` selects its SDK from the working directory.
 A run with the skill counts only when the transcript shows that the agent loaded the skill.
 
+A task can declare `rubric` items (`id`, `question`) for problems that builds and tests do not show: non-idiomatic shape, speculative code, and missed reuse.
+The task grader calls `Invoke-Rubric` from `evals/lib/Grading.psm1`, which returns one three-state check for each item.
+The judge sees only the questions and a `git diff --no-index --ignore-cr-at-eol` of the task inputs (`before/`) against the workspace (`after/`), without `TASK.md` or skill folders. It must not see the mode or the skill text.
+The diff replaces the install name `<skill>-eval` with `<skill>`. Text that the agent writes about a skill can still reach the judge.
+A judge answer counts only with a quote of 4 or more characters inside one hunk code line (added, removed, or unchanged). Headers, `@@` lines, and quotes on more than one line do not count.
+A missing or invented quote, a malformed judge reply, a judge failure, an invalid `SKILL_EVAL_JUDGE`, or a missing `git` gives `passed = null`. A rubric item without an `id` or a `question` skips all items of the task. After `Invoke-Rubric` reads `evals.json`, it does not throw, so the other checks of the grader stay. A malformed `evals.json` still throws.
+The diff uses `--no-ext-diff` and `--no-textconv`, because an external diff tool in the user's git config writes no hunks.
+The check text is `Rubric <id>: <question>`. The summary pairs checks by text, so a reworded question needs a regrade of old results.
+Native output is decoded as UTF-8 for the diff and the judge. The Windows console code page otherwise garbles non-ASCII code, and the quotes then do not match.
+The judge command is the JSON array in `SKILL_EVAL_JUDGE` (`off` skips). The default is `claude -p --model haiku` with no tools, no setting sources, and its own `--system-prompt`, run in an empty temp directory. Without `--system-prompt`, the judge receives the user's instructions.
+Ambiguous rubric wording is the main cause of different answers between grades. Grade the same workspaces two or more times before you trust a rubric. `evals/tests/Rubric.Tests.ps1` tests the function with a fake judge.
+
+```json
+"rubric": [{ "id": "direct-composition", "question": "Does placeOrder call each leaf function directly, with no Result.mapError?" }]
+```
+
 Check local discovery from the repository root:
 
 ```sh
