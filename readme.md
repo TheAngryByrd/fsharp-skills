@@ -1,7 +1,7 @@
 # F# skills
 
 Reusable instructions for AI agents working on F# code, packaged in the [Agent Skills format](https://agentskills.io/home).
-The skills cover domain design, dependency management, error composition, async composition, compiler performance, and Native AOT.
+The skills cover domain design, dependency management, error composition, failure paths, async composition, compiler performance, and Native AOT.
 
 ## Skills
 
@@ -13,6 +13,7 @@ The skills cover domain design, dependency management, error composition, async 
 | [fsharp-env-capabilities](skills/fsharp-env-capabilities/SKILL.md) | Passes dependencies through a generic environment with small `IProvideX` capability interfaces. | Lets the compiler infer dependency requirements and lets tests supply only the dependencies a function needs. |
 | [fsharp-async-composition](skills/fsharp-async-composition/SKILL.md) | Chooses between `task`, `async`, `valueTask`, `cancellableTask`, and `taskResult`, and converts between Task, Async, and ValueTask at boundaries with correct cancellation and exceptions. | Agents mix these types and write code that compiles but loses cancellation, never starts an `Async`, or awaits a `ValueTask` twice. FS0193 between these types appeared in 93 agent sessions. |
 | [fsharp-native-aot](skills/fsharp-native-aot/SKILL.md) | Makes F# formatting, logging, JSON, and configuration work under Native AOT, and compares JIT output with native exe output. | F# formatting can throw or silently lose union and tuple data in a native exe, and publish warnings do not point at that code. |
+| [fsharp-failure-paths](skills/fsharp-failure-paths/SKILL.md) | Replaces partial functions, `failwith`, hidden defaults, swallowed exceptions, and first-error-only validation with explicit `Error` results. | The compiler accepts these defects, so they reach human review. Review evidence ranks failure-path handling as a top category of comments on agent F# code. |
 
 The patterns can work together: the environment supplies capabilities, and IWSAM interfaces describe possible errors.
 
@@ -65,6 +66,10 @@ Use fsharp-env-capabilities to replace these dependency parameters with a capabi
 ```
 
 ```text
+Use fsharp-failure-paths to find the partial functions, defaults, and caught exceptions in this change and report each failure as an Error.
+```
+
+```text
 Use parse-dont-validate to model this input with private constructors and explicit parse errors.
 ```
 
@@ -72,7 +77,7 @@ Use parse-dont-validate to model this input with private constructors and explic
 Use fsharp-native-aot to make this F# service publish with PublishAot and keep its log and JSON output unchanged.
 ```
 
-```	ext
+```text
 Use fsharp-async-composition to make this handler call our Async library without blocking and honor its CancellationToken.
 ```
 
@@ -85,12 +90,13 @@ Keep the skill's scripts and references with its entry point so relative links r
 
 ## Run the examples
 
-The IWSAM and environment skills include F# scripts that require the .NET 10 SDK and NuGet access. Their runners require PowerShell 7.2 or later (`pwsh`).
+The IWSAM, environment, and failure-path skills include F# scripts that require the .NET 10 SDK and NuGet access. Their runners require PowerShell 7.2 or later (`pwsh`).
 Each `scripts/global.json` selects .NET 10. Run the supplied runner so SDK selection starts in that directory.
 The F# 8 compiler can report `FS0192` for the IWSAM examples.
 Read the selected skill's **Verify** section for its runner and expected compiler diagnostics.
 Compile-time break tests intentionally fail compilation. Their runners check for the expected diagnostics.
 Compare printed example outcomes with the findings documents. The IWSAM and environment runners do not assert these runtime outcomes.
+The failure-path runner, `scripts/run.ps1`, asserts its outcomes. It fails when an unsafe form does not fail or a safe form does not report the failure.
 
 The Native AOT skill includes a project-based runner, `scripts/run.ps1`. It requires the .NET 10 SDK, PowerShell 7.2 or later, and NuGet access. It also requires the platform Native AOT toolchain: MSVC and the Windows SDK on Windows, or clang on Linux.
 The runner builds and publishes a probe app and compares JIT output with native exe output. It fails when a probe result differs from the expected verdict or the expected native text. Compare the printed results with the skill's findings document.
@@ -110,7 +116,7 @@ pwsh ./evals/run-evals.ps1 -Skill fsharp-native-aot -Target claude:sonnet,codex
 ```
 
 The runner starts agents without permission prompts. Read the caution in the eval README before you run it.
-Eval tasks exist for each skill. The [eval README](evals/README.md) lists them.
+Eval tasks exist for each skill. See the [eval README](evals/README.md) for the task list.
 
 ## Related skills
 

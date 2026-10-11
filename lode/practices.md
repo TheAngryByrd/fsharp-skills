@@ -38,6 +38,9 @@ An eval task must depend on a skill fact that the agent cannot guess or check du
 Graders run the agent's output, for example as a JIT build and as a native exe.
 Before you use a grader, test it against a known good result and a known bad result.
 Text rules in graders reject valid alternatives, for example `and` type declarations or a `Result` return. Prefer checks that run the agent's code. Grade a result folder again with `evals/grade-evals.ps1` after a grader fix.
+Graders for silent defects use fault injection. The `parse-dont-validate` and `fsharp-failure-paths` graders load the agent's script into a probe that calls its functions with failing input and prints `PASS` or `FAIL` for each case.
+A grader that matches error text accepts any error shape: a string, a list, or a union. It checks that the printed error names the cause, for example the missing key.
+A naive fix that wraps the result in `Result` but keeps the default, the catch-all handler, and `List.head errors` must fail the grader. Test the grader against that fix as well as against the original input and a known good result.
 Eval workspaces live in the temp directory. A parent `global.json` above this repository pins SDK 8, and a parent `Directory.Packages.props` turns on central package management.
 Graders run `dotnet` from the project directory because `dotnet` selects its SDK from the working directory.
 A run with the skill counts only when the transcript shows that the agent loaded the skill.
@@ -62,6 +65,7 @@ For compile-time break tests, check the expected diagnostic as well as compilati
 Proof runners reject unexpected compiler errors and preserve the complete inferred signatures for inspection.
 The runners require PowerShell 7.2 or later so redirected native stderr does not terminate expected compiler-failure checks.
 Successful example execution does not assert the printed runtime outcomes. Compare those outcomes with each skill's findings document.
+The `fsharp-failure-paths` and `fsharp-async-composition` proof runners are exceptions. The async runner checks each outcome with `Proofs.fsx` and fails on a mismatch. `FailurePaths.fsx` compares each outcome with an expected value and exits with code 1 on a mismatch. It has no compile-time break tests and prints no inferred signatures.
 
 Example format check, when `skills-ref` is installed:
 
