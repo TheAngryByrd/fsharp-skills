@@ -24,6 +24,14 @@ These files stop parent MSBuild files, such as central package management, from 
 The runner compares each probe's JIT and native results with an expected verdict: `same`, `throws`, or `differs`.
 Each metadata fix needs its own small exe. A fix in a shared exe keeps metadata for every probe in that exe.
 
+The async composition proof runner runs `Proofs.fsx` with FSI and builds a `StateMachine` project in Release.
+FSI does not report FS3511, so the state machine check needs a Release project build.
+The runner reuses the Native AOT isolation files with its own temp artifact folder.
+Write each `do!` and `return` on its own line in proof scripts. A one-line `async { do! x; return y }` gives FS0748.
+
+Async semantics graders run the agent's code against probe fakes. A cancellation grader checks that the inner work stops, not only that the task completes.
+A ValueTask grader needs a pooled `IValueTaskSource` that resets on `GetResult`. A `Task`-backed `ValueTask` hides a second read.
+
 Skill evals live in `evals/<skill>/`, outside the skill directory, so installed skills do not carry them.
 [evals/README.md](../evals/README.md) documents the runner, the task format, and the grader contract.
 An eval task must depend on a skill fact that the agent cannot guess or check during a normal build. A cautious agent passed the first `fsharp-native-aot` tasks without the skill, so those tasks measured nothing.

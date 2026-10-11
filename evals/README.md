@@ -150,4 +150,7 @@ Write-Checks (Join-Path $OutDir 'grading.json') $checks
 | `fsharp-env-capabilities` | `pinned-leaf` | A fix for a leaf whose `#IProvideX` env was pinned to the first caller (FS0064, then FS0193). |
 | `fsharp-env-capabilities` | `deterministic-salt` | A test env with fixed salt bytes. The accessor must not expose `System.Random`, and the fake must not subclass it. |
 | `parse-dont-validate` | `registration` | Parsed domain types with private representations. A probe calls the refactored functions, and two scripts must fail to compile. |
+| `fsharp-async-composition` | `cancel-bridge` | A non-blocking `handle` over an Async library. A probe cancels the token and checks that the Async work stops, that a bad id gives a faulted task with the original exception, and that a fire-and-forget audit entry is written. |
+| `fsharp-async-composition` | `dashboard-load` | Concurrent panel loads over a Task-based client. A probe checks that `PanelNotFound` becomes `Error` (`Async.AwaitTask` wraps it in `AggregateException`), that the failure cancels a slow sibling, and that a retry calls the client again. |
+| `fsharp-async-composition` | `valuetask-port` | A port of `IFrameSource.ReadAsync` to `ValueTask<int>`. A probe uses a pooled source that throws when one `ValueTask` is read twice. |
 | `optimize-fsharp-typecheck-graph` | `false-edges` | The global `AutoOpen` module that gates every file, a fix that removes the false edges, and no speed claim without three timed builds. |
