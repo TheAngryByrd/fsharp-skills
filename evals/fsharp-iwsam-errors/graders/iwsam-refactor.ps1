@@ -29,5 +29,6 @@ $interfaces = [regex]::Matches($text, "(?m)^(type|and)\s+\w+\s*<\s*'\w+.*>\s*=\s
 $checks += New-Check 'At least four error leaves are interfaces with static abstract members' ($interfaces -ge 4) "found $interfaces"
 $leafSigs = [regex]::Matches($text, "let\s+\w+\s*<\s*'(\w+)\s+when\s+('\1\s*:>\s*)?\w+\s*<\s*'\1\s*>").Count
 $checks += New-Check 'At least four leaf functions declare an explicit error constraint' ($leafSigs -ge 4) "found $leafSigs"
+$checks += Invoke-Rubric -Workspace $Workspace -EvalDir (Split-Path $PSScriptRoot) -TaskId 'iwsam-refactor'
 
 Write-Checks (Join-Path $OutDir 'grading.json') $checks

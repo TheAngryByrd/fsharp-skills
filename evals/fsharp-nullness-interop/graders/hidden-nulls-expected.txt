@@ -1,0 +1,16 @@
+displayName-value | Ada L
+displayName-empty | ""
+displayName-null | ada
+tryEmail-parameter | JsonElement
+tryEmail-value | Some "a@b.c"
+tryEmail-null | None
+configPath-unset | app.json
+configPath-set | custom.json
+readLines-text | a,b
+readLines-empty | 0
+rootMessage-single | only
+rootMessage-chain | inner
+tryCountry-value | Some "NZ"
+tryCountry-null | None
+tryNick-value | Some "al"
+tryNick-null | None

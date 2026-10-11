@@ -203,9 +203,36 @@ function Find-TokenObjects($Node) {
     }
 }
 
+$ShellWrapperPattern = '(?s)^\s*(?:"[^"]*|[^\s"]*)(?<![\w-])(?:pwsh|powershell|bash|sh|zsh)(?:\.exe)?"?(?:\s+-\w+)*?\s+-(?:Command|c|lc)\s+(?<script>.+)$'
+$BuildCommandPattern = '(?:^|[;&|({\r\n])\s*(?:[^\s;&|]*[\\/])?dotnet(?:\.exe)?\s+(?:build|test|run|fsi)(?![\w-])'
+
+function Test-BuildCommand {
+    param([string]$Command)
+    $script = $Command
+    if ($script -match $ShellWrapperPattern) {
+        $script = [regex]::Replace($Matches.script.Trim(), '"((?:\\.|[^"\\])*)"|''([^'']*)''', {
+                param($q) if ($q.Groups[1].Success) { $q.Groups[1].Value -replace '\\(["\\$`])', '$1' } else { $q.Groups[2].Value } })
+    }
+    $script = $script -replace '["'']([^"'']*[\\/])?dotnet(\.exe)?["'']', 'dotnet'
+    $script = $script -replace "'[^']*'", "''" -replace '"[^"]*"', '""'
+    $script -match $BuildCommandPattern
+}
+$CompilerErrorPattern = '(?m)\berror FS\d+'
+
+function Get-ContentText($Content) {
+    if ($null -eq $Content) { return '' }
+    if ($Content -is [string]) { return $Content }
+    (@($Content) | ForEach-Object { if ($_ -is [string]) { $_ } elseif ($_.PSObject.Properties['text']) { "$($_.text)" } }) -join "`n"
+}
+
+function Test-FailedBuild {
+    param([string]$Command, [bool]$Failed, [string]$Output)
+    (Test-BuildCommand $Command) -and ($Failed -or $Output -match $CompilerErrorPattern)
+}
+
 function Get-AgentMetrics {
     param([Parameter(Mandatory)][string]$Agent, [Parameter(Mandatory)][string]$TranscriptPath, [Parameter(Mandatory)][string]$Skill, [switch]$NoGlobalCheck)
-    $m = [ordered]@{ InputTokens = $null; OutputTokens = $null; CostUsd = $null; SkillUsed = $false; GlobalSkillUsed = $false }
+    $m = [ordered]@{ InputTokens = $null; OutputTokens = $null; CostUsd = $null; Turns = $null; FailedBuilds = $null; SkillUsed = $false; GlobalSkillUsed = $false }
     if (-not $NoGlobalCheck -and (Test-Path $TranscriptPath)) {
         $installed = Get-InstallName $Skill
         if ($Skill -ne $installed) {
@@ -215,6 +242,7 @@ function Get-AgentMetrics {
     }
     if (-not (Test-Path $TranscriptPath)) { return [pscustomobject]$m }
     $events = @(ConvertFrom-JsonLines $TranscriptPath)
+    if ($events.Count -eq 0) { return [pscustomobject]$m }
     # Only tool output with the skill's frontmatter name line, or a completed skill tool call, proves a load.
     $lookFor = if ($NoGlobalCheck) { $Skill } else { Get-InstallName $Skill }
     $frontmatter = 'name:\s*' + [regex]::Escape($lookFor) + '(?![\w-])'
@@ -227,21 +255,31 @@ function Get-AgentMetrics {
                 $m.InputTokens = (Get-Number $u 'input_tokens') + (Get-Number $u 'cache_creation_input_tokens') + (Get-Number $u 'cache_read_input_tokens')
                 $m.OutputTokens = Get-Number $u 'output_tokens'
                 $m.CostUsd = Get-Number $final 'total_cost_usd'
+                if ($final.PSObject.Properties['num_turns']) { $m.Turns = [int]$final.num_turns }
             }
             $skillCalls = @{}
+            $commands = @{}
+            $toolCalls = 0
             foreach ($e in $events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'assistant' }) {
                 foreach ($c in @($e.message.content)) {
-                    if ($c.type -eq 'tool_use' -and $c.name -eq 'Skill' -and $c.input.PSObject.Properties['skill'] -and "$($c.input.skill)" -eq $lookFor) { $skillCalls[$c.id] = $true }
+                    if ($c.type -ne 'tool_use') { continue }
+                    if ($c.name -eq 'Skill' -and $c.input.PSObject.Properties['skill'] -and "$($c.input.skill)" -eq $lookFor) { $skillCalls[$c.id] = $true }
+                    $toolCalls++
+                    if ($c.input.PSObject.Properties['command']) { $commands[$c.id] = "$($c.input.command)" }
                 }
             }
+            $m.FailedBuilds = 0
             foreach ($e in $events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'user' }) {
                 foreach ($c in @($e.message.content)) {
                     if ($c -isnot [psobject] -or -not $c.PSObject.Properties['type'] -or $c.type -ne 'tool_result') { continue }
-                    $failed = $c.PSObject.Properties['is_error'] -and $c.is_error
+                    $failed = [bool]($c.PSObject.Properties['is_error'] -and $c.is_error)
                     $text = if ($c.PSObject.Properties['content']) { $c.content | ConvertTo-Json -Depth 10 } else { '' }
                     if (-not $failed -and ($skillCalls.ContainsKey($c.tool_use_id) -or $text -match $frontmatter)) { $m.SkillUsed = $true }
+                    if ($commands.ContainsKey($c.tool_use_id) -and (Test-FailedBuild $commands[$c.tool_use_id] $failed (Get-ContentText $c.content))) { $m.FailedBuilds++ }
                 }
             }
+            # A stopped Claude run has no result event.
+            if ($null -eq $m.Turns) { $m.Turns = $toolCalls + 1 }
         }
         'codex' {
             $turns = @($events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'turn.completed' })
@@ -249,9 +287,19 @@ function Get-AgentMetrics {
                 $m.InputTokens = ($turns | ForEach-Object { Get-Number $_.usage 'input_tokens' } | Measure-Object -Sum).Sum
                 $m.OutputTokens = ($turns | ForEach-Object { Get-Number $_.usage 'output_tokens' } | Measure-Object -Sum).Sum
             }
-            foreach ($e in $events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'item.completed' }) {
+            $completed = @($events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'item.completed' })
+            # Codex exec emits no event for each model request.
+            $m.Turns = @($completed | Where-Object { $_.item.type -notin 'agent_message', 'reasoning', 'error' }).Count + 1
+            $m.FailedBuilds = 0
+            foreach ($e in $completed) {
                 $item = $e.item
-                if ($item.PSObject.Properties['aggregated_output'] -and "$($item.aggregated_output)" -match $frontmatter) { $m.SkillUsed = $true }
+                $output = if ($item.PSObject.Properties['aggregated_output']) { "$($item.aggregated_output)" } else { '' }
+                if ($output -match $frontmatter) { $m.SkillUsed = $true }
+                if ($item.type -eq 'command_execution') {
+                    $failed = ($item.PSObject.Properties['exit_code'] -and $null -ne $item.exit_code -and $item.exit_code -ne 0) -or
+                        ($item.PSObject.Properties['status'] -and $item.status -eq 'failed')
+                    if (Test-FailedBuild "$($item.command)" $failed $output) { $m.FailedBuilds++ }
+                }
             }
         }
         'opencode' {
@@ -263,11 +311,19 @@ function Get-AgentMetrics {
             }
             $costs = @($steps | ForEach-Object { if ($_.PSObject.Properties['part'] -and $_.part.PSObject.Properties['cost']) { [double]$_.part.cost } })
             if ($costs.Count) { $m.CostUsd = ($costs | Measure-Object -Sum).Sum }
+            $m.Turns = $steps.Count
+            $m.FailedBuilds = 0
             foreach ($e in $events | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'tool_use' }) {
                 $state = $e.part.state
+                $output = if ($state.PSObject.Properties['output']) { "$($state.output)" } else { '' }
+                if ($state.PSObject.Properties['input'] -and $state.input.PSObject.Properties['command']) {
+                    $meta = if ($state.PSObject.Properties['metadata']) { $state.metadata } else { $null }
+                    $exit = if ($meta -and $meta.PSObject.Properties['exit']) { $meta.exit } else { $null }
+                    $failed = $state.status -eq 'error' -or ($null -ne $exit -and $exit -ne 0)
+                    if (Test-FailedBuild "$($state.input.command)" $failed $output) { $m.FailedBuilds++ }
+                }
                 if ($state.status -ne 'completed') { continue }
                 $isSkillTool = $e.part.tool -eq 'skill' -and $state.input.PSObject.Properties['name'] -and "$($state.input.name)" -eq $lookFor
-                $output = if ($state.PSObject.Properties['output']) { "$($state.output)" } else { '' }
                 if ($isSkillTool -or $output -match $frontmatter) { $m.SkillUsed = $true }
             }
         }
@@ -281,6 +337,15 @@ function Get-Mean([object[]]$Values) {
     ($v | Measure-Object -Average).Average
 }
 
+function Get-RunValue($Run, [string]$Name) {
+    if ($Run.PSObject.Properties[$Name]) { $Run.$Name } else { $null }
+}
+
+function Format-Mean([object[]]$Values) {
+    $mean = Get-Mean $Values
+    if ($null -ne $mean) { '{0:n1}' -f $mean } else { '-' }
+}
+
 function Write-Summary {
     param([Parameter(Mandatory)][object[]]$Results, [Parameter(Mandatory)][string]$Root, [string]$Skill, [AllowNull()][object[]]$Contamination = @())
     $Contamination = @($Contamination | Where-Object { $_ })
@@ -292,23 +357,25 @@ function Write-Summary {
         $lines += ($Contamination | ForEach-Object { "- $($_.Name): $($_.Path)" })
         $lines += ''
     }
-    $lines += '| Target | Task | Skill | Counted runs | Pass rate | Skipped | Seconds | Tokens | Not loaded |'
-    $lines += '|---|---|---|---|---|---|---|---|---|'
+    $lines += '| Target | Task | Skill | Counted runs | Pass rate | Skipped | Seconds | Tokens | Turns | Failed builds | Not loaded |'
+    $lines += '|---|---|---|---|---|---|---|---|---|---|---|'
     foreach ($g in $Results | Group-Object target, task, mode) {
         $all = @($g.Group)
         $r = @($all | Where-Object { $_.mode -ne 'with' -or $_.skillUsed })
         $notLoaded = $all.Count - $r.Count
         if ($r.Count -eq 0) {
-            $lines += '| {0} | {1} | {2} | 0 | - | - | - | - | {3} |' -f $all[0].target, $all[0].task, $all[0].mode, $notLoaded
+            $lines += '| {0} | {1} | {2} | 0 | - | - | - | - | - | - | {3} |' -f $all[0].target, $all[0].task, $all[0].mode, $notLoaded
             continue
         }
         $rate = Get-Mean ($r | ForEach-Object { if (($_.passed + $_.failed) -gt 0) { $_.passed / ($_.passed + $_.failed) } })
         $tok = Get-Mean ($r | ForEach-Object { if ($null -ne $_.inputTokens) { $_.inputTokens + $_.outputTokens } })
-        $lines += '| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |' -f $r[0].target, $r[0].task, $r[0].mode, $r.Count,
+        $lines += '| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} |' -f $r[0].target, $r[0].task, $r[0].mode, $r.Count,
             $(if ($null -ne $rate) { '{0:p0}' -f $rate } else { '-' }),
             (($r | Measure-Object skipped -Sum).Sum),
             ('{0:n0}' -f (Get-Mean $r.seconds)),
             $(if ($null -ne $tok) { '{0:n0}' -f $tok } else { '-' }),
+            (Format-Mean ($r | ForEach-Object { Get-RunValue $_ 'turns' })),
+            (Format-Mean ($r | ForEach-Object { Get-RunValue $_ 'failedBuilds' })),
             $notLoaded
     }
     $lines += ''
