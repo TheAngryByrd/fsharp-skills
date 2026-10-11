@@ -1,0 +1,22 @@
+tryHost-valid | Some "example.com"
+tryHost-invalid | None
+tryName-value | Some "Ada"
+tryName-null | None
+tryName-missing | None
+envOr-unset | fallback
+envOr-set | value
+rootMessage-single | only
+rootMessage-chain | inner
+describe-single | only
+describe-chain | outer <- middle <- inner
+tryParent-root | None
+tryParent-bare | None
+tryParent-nested | Some "a"
+tryFirstLine-empty | None
+tryFirstLine-text | Some "x"
+loadSettings-null | Error empty document
+loadSettings-value | Ok svc 3
+retryDelay-30-1 | 00:00:01
+retryDelay-30-4 | 00:00:08
+retryDelay-5-6 | 00:00:05
+timeout-2 | 00:02:00

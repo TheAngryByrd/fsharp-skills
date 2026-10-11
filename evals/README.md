@@ -13,7 +13,7 @@ Supported agents:
 - PowerShell 7.4 or later (`pwsh`) on Windows, Linux, or macOS.
 - Each agent CLI that you test, installed, on `PATH`, and signed in.
 - `git`, to make each workspace a repository. Codex and opencode stop the project skill search at the repository root.
-- The prerequisites of the skill's graders. The `fsharp-native-aot` graders need the .NET 10 SDK, NuGet access, and the Native AOT toolchain. Use `-SkipNative` without the toolchain.
+- The prerequisites of the skill's graders. The `fsharp-native-aot` graders need the .NET 10 SDK, NuGet access, and the Native AOT toolchain. Use `-SkipNative` without the toolchain. The `fsharp-nullness-interop` graders need the .NET 10 SDK and NuGet access.
 
 > [!CAUTION]
 > The runner starts agents without permission prompts: `--dangerously-skip-permissions`, `--sandbox danger-full-access`, and `--auto`. An agent can run any command as your user. Run evals only on a machine or container that you trust with that access.
@@ -150,4 +150,6 @@ Write-Checks (Join-Path $OutDir 'grading.json') $checks
 | `fsharp-env-capabilities` | `pinned-leaf` | A fix for a leaf whose `#IProvideX` env was pinned to the first caller (FS0064, then FS0193). |
 | `fsharp-env-capabilities` | `deterministic-salt` | A test env with fixed salt bytes. The accessor must not expose `System.Random`, and the fake must not subclass it. |
 | `parse-dont-validate` | `registration` | Parsed domain types with private representations. A probe calls the refactored functions, and two scripts must fail to compile. |
+| `fsharp-nullness-interop` | `enable-nullness` | Nullness and warnings as errors turned on in the delivered project, a clean build after FS3261 and FS0041 fixes, no unexplained suppression, unchanged signatures, and documented results for null inputs. |
+| `fsharp-nullness-interop` | `hidden-nulls` | Fixes for null leaks that build clean with nullness on (`string x`, `Some (call ())`, `nonNull`, `Unchecked.nonNull`). A driver runs each function with null inputs. |
 | `optimize-fsharp-typecheck-graph` | `false-edges` | The global `AutoOpen` module that gates every file, a fix that removes the false edges, and no speed claim without three timed builds. |

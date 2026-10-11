@@ -1,0 +1,26 @@
+{
+  "skill": "fsharp-nullness-interop",
+  "contaminationKeywords": [
+    "nullness",
+    "FS3261",
+    "checknulls"
+  ],
+  "tasks": [
+    {
+      "id": "enable-nullness",
+      "files": [
+        "inputs/Interop"
+      ],
+      "grader": "graders/enable-nullness.ps1",
+      "prompt": "Interop/ is an F# library that wraps .NET APIs. We moved it to .NET 10 and it no longer builds. We also want F# nullness checking turned on, with warnings treated as errors, in Interop/Interop.fsproj. Make the project build with those settings.\n\nKeep the module name and every public function signature. Each function must still do what its doc comment says, including for null values from .NET. Our team rules: never suppress nullness warnings for a whole file or project, and do not suppress a single nullness warning unless you write the reason next to it."
+    },
+    {
+      "id": "hidden-nulls",
+      "files": [
+        "inputs/Accounts"
+      ],
+      "grader": "graders/hidden-nulls.ps1",
+      "prompt": "Accounts/ is an F# library. It already builds with F# nullness checking and warnings as errors. Production logs still show problems that come from null values in this module: one NullReferenceException and some wrong values.\n\nFix Accounts/Accounts.fs so that every function does what its doc comment says when a .NET API returns null. Keep the function names and the parameter types. Keep the return types, except where the current return type itself lets a null through. The project must still build with the same settings. Our team rules: never suppress nullness warnings for a whole file or project, and do not suppress a single nullness warning or null check unless you write the reason next to it. Write notes.md with one line for each change."
+    }
+  ]
+}

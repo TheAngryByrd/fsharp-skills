@@ -1,7 +1,7 @@
 # F# skills
 
 Reusable instructions for AI agents working on F# code, packaged in the [Agent Skills format](https://agentskills.io/home).
-The skills cover domain design, dependency management, error composition, compiler performance, and Native AOT.
+The skills cover domain design, dependency management, error composition, compiler performance, Native AOT, and .NET nullness interop.
 
 ## Skills
 
@@ -12,6 +12,7 @@ The skills cover domain design, dependency management, error composition, compil
 | [fsharp-iwsam-errors](skills/fsharp-iwsam-errors/SKILL.md) | Composes `Result` errors through interfaces with static abstract members (IWSAM). The caller selects a concrete error type. | Reduces repeated `Result.mapError` conversions and uses compiler constraints to require the error cases needed by a call tree. |
 | [fsharp-env-capabilities](skills/fsharp-env-capabilities/SKILL.md) | Passes dependencies through a generic environment with small `IProvideX` capability interfaces. | Lets the compiler infer dependency requirements and lets tests supply only the dependencies a function needs. |
 | [fsharp-native-aot](skills/fsharp-native-aot/SKILL.md) | Makes F# formatting, logging, JSON, and configuration work under Native AOT, and compares JIT output with native exe output. | F# formatting can throw or silently lose union and tuple data in a native exe, and publish warnings do not point at that code. |
+| [fsharp-nullness-interop](skills/fsharp-nullness-interop/SKILL.md) | Turns on F# nullness checks, converts `T \| null` results from .NET APIs to F# types at the boundary, and fixes FS0041 errors from new BCL overloads such as `TimeSpan.FromSeconds(int64)`. | Codex and opencode sessions show 435 FS3261 warnings in 37 sessions (61% from 3 sessions) and FS0041 errors in 91 sessions. Claude sessions show 20 FS3261 hits and `TimeSpan.FromSeconds` overload errors. Some fixes compile but hide a real null, for example `Some (call ())`, `string x`, or `Unchecked.nonNull`. |
 
 The patterns can work together: the environment supplies capabilities, and IWSAM interfaces describe possible errors.
 
@@ -72,6 +73,10 @@ Use fsharp-native-aot to make this F# service publish with PublishAot and keep i
 ```
 
 ```text
+Use fsharp-nullness-interop to turn on nullness checks with TreatWarningsAsErrors and fix the FS3261 and FS0041 errors without hiding nulls.
+```
+
+```text
 Use optimize-fsharp-typecheck-graph to measure this project's type-checking bottleneck and evaluate a compatible improvement.
 ```
 
@@ -90,6 +95,9 @@ Compare printed example outcomes with the findings documents. The IWSAM and envi
 The Native AOT skill includes a project-based runner, `scripts/run.ps1`. It requires the .NET 10 SDK, PowerShell 7.2 or later, and NuGet access. It also requires the platform Native AOT toolchain: MSVC and the Windows SDK on Windows, or clang on Linux.
 The runner builds and publishes a probe app and compares JIT output with native exe output. It fails when a probe result differs from the expected verdict or the expected native text. Compare the printed results with the skill's findings document.
 
+The nullness skill includes a project-based runner, `scripts/run.ps1`. It requires the .NET 10 SDK, NuGet access, and PowerShell 7.2 or later.
+The runner builds and runs a project with nullness checks and warnings as errors, and compares its null-handling results with expected values. It then builds each compile-time break test and checks for its expected diagnostic codes and message text.
+
 The parsing and compiler-performance skills provide guidance. Apply their verification steps to the target project.
 
 ## Evaluate a skill
@@ -102,7 +110,7 @@ pwsh ./evals/run-evals.ps1 -Skill fsharp-native-aot -Target claude:sonnet,codex
 ```
 
 The runner starts agents without permission prompts. Read the caution in the eval README before you run it.
-Eval tasks exist for `fsharp-native-aot`.
+Eval tasks exist for each skill. The [eval README](evals/README.md) lists them.
 
 ## Related skills
 
