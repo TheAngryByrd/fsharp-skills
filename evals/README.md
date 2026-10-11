@@ -55,7 +55,27 @@ For a run with the skill, the runner copies the skill to `ws/.claude/skills/<ski
 
 The workspace is in the temp directory, not in the repository. MSBuild and `dotnet` read `Directory.*.props` and `global.json` files from parent directories. A workspace inside a checkout can inherit settings that change the result.
 
-Results go to `<run-id>/summary.md` and `<run-id>/results.json`. The summary shows the counted runs, pass rate, skipped checks, time, and tokens for each target, task, and mode. It also lists each check with its result in both modes.
+Results go to `<run-id>/summary.md` and `<run-id>/results.json`. The summary shows the counted runs, pass rate, skipped checks, time, tokens, mean turns, and mean failed builds for each target, task, and mode. It also lists each check with its result in both modes.
+
+## Effort metrics
+
+Some skills do not change the pass rate. The agent finishes without the skill, but only after many failed builds. Each `run.json` records two values that show this effort:
+
+- `turns`: the number of agent turns.
+  - Claude Code: `num_turns` from the final `result` event. A stopped run has no `result` event. For that run, the runner uses the number of tool calls plus 1.
+  - Codex: the number of completed tool items (commands, file changes, and other tools) plus 1. Codex does not report each model request.
+  - opencode: the number of `step_finish` events.
+- `failedBuilds`: the number of failed build calls. A failed build call is a shell command that runs `dotnet build`, `dotnet test`, `dotnet run`, or `dotnet fsi`. It also exits with a non-zero code or prints an `error FS<number>` line. The runner removes a `pwsh -Command` or `bash -lc` wrapper and ignores text in quotes. `dotnet` must then start a command, for example after `&&`, `;`, or `|`. So `rg 'dotnet build'` is not a build call, but `& "C:\Program Files\dotnet\dotnet.exe" build` is. The runner reads the exit code from the Claude Code `is_error` flag, the Codex `exit_code`, and the opencode `metadata.exit` or `error` status.
+
+Each agent counts turns in a different way. Compare turns between modes of one target, not between agents. A value is `null` when the transcript is missing or empty.
+
+Test the metric parser and the summary with the transcript fixtures in `tests/fixtures/`:
+
+```powershell
+pwsh ./evals/tests/Metrics.Tests.ps1
+```
+
+The script exits with code 1 and lists each failed check.
 
 ## Grade again
 
@@ -65,7 +85,7 @@ After you change a grader, grade an existing result folder again. The agents do 
 pwsh ./evals/grade-evals.ps1 -ResultDir <OutputRoot>/<run-id>
 ```
 
-Use `-Task` to grade only some tasks. The script updates each `run.json`, `results.json`, and `summary.md`.
+Use `-Task` to grade only some tasks. The script updates each `run.json`, `results.json`, and `summary.md`. It keeps the `turns` and `failedBuilds` values in each `run.json`. When a `run.json` does not have these values, the script reads them from `transcript.jsonl`.
 
 ## Isolation
 

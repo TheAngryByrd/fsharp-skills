@@ -13,6 +13,8 @@
 - Grader - A script that checks an agent's output and writes `grading.json`.
 - Baseline - An eval run without the skill.
 - Contamination - A global skill on the same subject that a baseline run can load.
+- Turn - One agent step in an eval transcript. Each agent counts it differently (see `evals/README.md`).
+- Failed build call - A shell command that runs `dotnet build`, `dotnet test`, `dotnet run`, or `dotnet fsi` and exits non-zero or prints an `error FS` line.
 - Silent data loss - Native exe output that has less content than the JIT output, with no exception.
 
 Use these terms consistently in [practices](practices.md) and skill documentation. A failure alone does not prove the expected compiler constraint.

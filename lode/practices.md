@@ -33,6 +33,10 @@ Text rules in graders reject valid alternatives, for example `and` type declarat
 Eval workspaces live in the temp directory. A parent `global.json` above this repository pins SDK 8, and a parent `Directory.Packages.props` turns on central package management.
 Graders run `dotnet` from the project directory because `dotnet` selects its SDK from the working directory.
 A run with the skill counts only when the transcript shows that the agent loaded the skill.
+Pass rate does not measure skills for compiler-caught problems such as FS0039 and FS0078. The agent still finishes, but after many failed builds.
+So each `run.json` records `turns` and `failedBuilds`, and the summary shows their means for each target, task, and mode.
+`Get-AgentMetrics` in `evals/lib/Agents.psm1` parses them from all three transcript formats. Each agent counts turns differently, so compare turns only within one target.
+`evals/tests/Metrics.Tests.ps1` checks the parser and the summary against small transcript fixtures in `evals/tests/fixtures/`.
 
 Check local discovery from the repository root:
 
