@@ -1,0 +1,35 @@
+{
+  "skill": "fsharp-async-composition",
+  "contaminationKeywords": [
+    "ValueTask",
+    "CancellationToken",
+    "computation expression",
+    "Async.StartAsTask"
+  ],
+  "tasks": [
+    {
+      "id": "cancel-bridge",
+      "files": [
+        "inputs/Reports.fsx"
+      ],
+      "grader": "graders/cancel-bridge.ps1",
+      "prompt": "Reports.fsx holds an ASP.NET endpoint handler, `handle`, that calls our report library. The library is F# Async code that we cannot change. `handle` blocks a request thread. Rewrite `handle` so that it composes the library calls without blocking, and so that it honors its CancellationToken parameter.\n\nAlso add one feature: after the report is built, `handle` writes the audit entry `report {id} served` (for example `report 7 served`) with `lib.Audit`. The response must not wait for this audit entry.\n\nKeep the module name, the types, `buildReport`, and the signature `handle: Library -> int -> CancellationToken -> Task<Report>`. The script must load with `dotnet fsi`."
+    },
+    {
+      "id": "dashboard-load",
+      "files": [
+        "inputs/Dashboard.fsx"
+      ],
+      "grader": "graders/dashboard-load.ps1",
+      "prompt": "Dashboard.fsx loads dashboard panels one at a time, and the page is slow. Change loadDashboard so that:\n- panels load concurrently, and the result keeps the order of names;\n- when any panel raises PanelNotFound name, loadDashboard returns Error \"missing: <name>\" (for example Error \"missing: sales\") and stops the other panel loads at once, because each load is expensive on the server;\n- a panel load that fails with TimeoutException is retried, with at most 3 attempts for each panel. After 3 timeouts, loadDashboard returns Error \"timeout: <name>\".\n\nPanelApi is a .NET client that we cannot change. Keep PanelApi, PanelNotFound, and the signatures of loadPanel and loadDashboard. The script must load with `dotnet fsi`."
+    },
+    {
+      "id": "valuetask-port",
+      "files": [
+        "inputs/Frames.fsx"
+      ],
+      "grader": "graders/valuetask-port.ps1",
+      "prompt": "Profiling shows that the Task allocations from IFrameSource.ReadAsync dominate our frame pipeline. Change IFrameSource.ReadAsync in Frames.fsx to return ValueTask<int>, and update sumFrames, readWithTimeout, and readLabelled to match.\n\nKeep the module name, the interface name, the function names, and their parameters. The functions can return Task or ValueTask. Their results must not change. The script must load with `dotnet fsi`."
+    }
+  ]
+}

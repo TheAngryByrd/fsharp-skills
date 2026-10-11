@@ -19,7 +19,25 @@
         "inputs/Orders.fsx"
       ],
       "grader": "graders/iwsam-refactor.ps1",
-      "prompt": "Refactor the error handling in Orders.fsx to IWSAM error trees: each leaf function declares its errors as an interface with static abstract members, composites need no Result.mapError, and the caller picks one concrete edge type.\n\nKeep the demo section at the bottom of the file unchanged. Its output must stay the same. You can change the parameter type of describe to your edge type. The script must run with `dotnet fsi Orders.fsx`."
+      "prompt": "Refactor the error handling in Orders.fsx to IWSAM error trees: each leaf function declares its errors as an interface with static abstract members, composites need no Result.mapError, and the caller picks one concrete edge type.\n\nKeep the demo section at the bottom of the file unchanged. Its output must stay the same. You can change the parameter type of describe to your edge type. The script must run with `dotnet fsi Orders.fsx`.",
+      "rubric": [
+        {
+          "id": "direct-composition",
+          "question": "Does placeOrder call each leaf function directly in the result computation expression, with no error conversion such as Result.mapError, a lambda, or a wrapper case on the call?"
+        },
+        {
+          "id": "single-edge",
+          "question": "Does one concrete error type implement all the leaf error interfaces itself, with no separate adapter type for each leaf? One interface block for each leaf on that type counts as yes."
+        },
+        {
+          "id": "logic-kept",
+          "question": "Do the leaf functions keep the original validation conditions, for example raw.Length <= 8 and value > 0, and change only their error construction and signatures?"
+        },
+        {
+          "id": "no-speculative-code",
+          "question": "Is every interface and type that the diff adds used by a leaf function, by placeOrder, or by the concrete error type?"
+        }
+      ]
     }
   ]
 }

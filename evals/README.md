@@ -13,6 +13,7 @@ Supported agents:
 - PowerShell 7.4 or later (`pwsh`) on Windows, Linux, or macOS.
 - Each agent CLI that you test, installed, on `PATH`, and signed in.
 - `git`, to make each workspace a repository. Codex and opencode stop the project skill search at the repository root.
+- For rubric checks, Claude Code (`claude`) signed in, or another judge command. See [Rubric checks](#rubric-checks).
 - The prerequisites of the skill's graders. The `fsharp-native-aot` graders need the .NET 10 SDK, NuGet access, and the Native AOT toolchain. Use `-SkipNative` without the toolchain.
 
 > [!CAUTION]
@@ -152,6 +153,66 @@ Write-Checks (Join-Path $OutDir 'grading.json') $checks
 
 [lib/Grading.psm1](lib/Grading.psm1) has helpers for JSON answers, workspace copies, and .NET builds. `Invoke-JitAndNative` builds a project and runs it. It then checks that `PublishAot` evaluates to `true`, publishes the project, and runs the native exe.
 
+## Rubric checks
+
+Some problems do not cause a compiler error or a test failure: non-idiomatic F# shape, speculative code, and missed reuse. A rubric check sends the agent's diff to a separate judge model with yes/no questions.
+
+Add a `rubric` array to the task in `evals.json`:
+
+```json
+"rubric": [
+  {
+    "id": "direct-composition",
+    "question": "Does placeOrder call each leaf function directly in the result computation expression, with no error conversion such as Result.mapError, a lambda, or a wrapper case on the call?"
+  }
+]
+```
+
+Then call the shared function from the task's grader:
+
+```powershell
+$checks += Invoke-Rubric -Workspace $Workspace -EvalDir (Split-Path $PSScriptRoot) -TaskId 'my-task'
+```
+
+`Invoke-Rubric` returns one check for each rubric item, in the normal grader contract. The check text is `Rubric <id>: <question>`. The summary pairs checks by text, so grade old results again after you change a question.
+
+- The judge receives only the rubric questions and the diff. The diff compares the task `files` (`before/`) with the workspace (`after/`). It does not contain `TASK.md`, `.claude/`, `.agents/`, `.opencode/`, `.git/`, `bin/`, or `obj/`. The function replaces the install name `<skill>-eval` with `<skill>` in the diff. Other text that the agent writes, such as a comment about a skill, can still get to the judge.
+- The judge must answer `yes` or `no` and give a quote from the diff. The check passes for `yes` and fails for `no`. The evidence is the answer and the quote.
+- The quote must be part of one code line in a diff hunk: an added, removed, or unchanged line. A file header, an `@@` line, a quote on more than one line, and a quote shorter than 4 characters do not count. The function removes the `+` or `-` marker and collapses whitespace before it compares. A removed line counts, so that an item can ask about code that the agent removed.
+- The function skips a check (`passed` is null) when the quote does not count, when the judge does not answer the item, when the judge fails, or when the judge output has no `items` array. It also skips all checks when `git` is missing, when `SKILL_EVAL_JUDGE` is not valid, or when a rubric item has no `id` or no `question`. A skipped check does not count as a pass or a failure, and the other checks of the grader stay.
+- The function cuts the diff at 60,000 characters.
+
+Write rubric items with these rules:
+
+- Make `yes` the good answer, so that a pass means the result is good.
+- Ask one question about one thing in the code. Name the function or type.
+- Ask about something that a diff line can show. A question about an absence, such as "is every new type used", gets a weak quote: any added line.
+- Give a concrete example of the good or bad shape in the question.
+- Remove ambiguous words. A question that two readers can answer differently gives different answers on each grade. In the `iwsam-refactor` demo, "in one interface implementation" changed answers between grades. The new wording says that one interface block for each leaf counts as yes.
+- Before you use a rubric, grade the same workspaces two or more times and compare the answers.
+
+The judge command comes from the `SKILL_EVAL_JUDGE` environment variable, as a JSON array of the command and its arguments. The judge reads the prompt from stdin and must write JSON with the shape `{"items":[{"id":"...","answer":"yes","quote":"..."}]}`. Claude Code `--output-format json` output with `structured_output` also works. Set `SKILL_EVAL_JUDGE` to `off` to skip all rubric checks.
+
+The default judge is Claude Code with the `haiku` model and a JSON schema for the answer (`--json-schema`). It runs in an empty temp directory with no tools, no skills, no setting sources, no MCP servers, and its own system prompt, so the judge does not load your `CLAUDE.md` or skills. To use a different model, set the full command. This example uses `sonnet` and no schema:
+
+```powershell
+$env:SKILL_EVAL_JUDGE = '["claude","-p","--model","sonnet","--tools","","--disable-slash-commands","--no-session-persistence","--strict-mcp-config","--setting-sources","","--system-prompt","You review code changes against a rubric.","--output-format","json"]'
+```
+
+Keep `--system-prompt` in a Claude Code judge command. Without it, the judge gets the normal Claude Code system prompt and the user's instructions.
+
+### Agreement
+
+The `iwsam-refactor` rubric (4 items) graded the 6 `iwsam-refactor` runs of one result folder (Claude Code, Codex, and opencode, with and without the skill) three times with the default judge. All 24 items gave the same answer in all three grades (24/24). With the first wording of the `single-edge` question, 22 of 24 items gave the same answer in three or four grades. Both different answers were on that question.
+
+### Tests
+
+The rubric function has tests with a fake judge. They do not call a model:
+
+```powershell
+pwsh ./evals/tests/Rubric.Tests.ps1
+```
+
 ## fsharp-native-aot tasks
 
 | Task | What it checks | Native toolchain |
@@ -166,12 +227,16 @@ Write-Checks (Join-Path $OutDir 'grading.json') $checks
 | Skill | Task | What it checks |
 |---|---|---|
 | `fsharp-iwsam-errors` | `fix-checkout` | Fixes for FS0072, FS0366, and FS0331 in an IWSAM error design. The demo output must not change. |
-| `fsharp-iwsam-errors` | `iwsam-refactor` | A refactor from nested error unions with `Result.mapError` to IWSAM leaves. The demo output must not change. |
+| `fsharp-iwsam-errors` | `iwsam-refactor` | A refactor from nested error unions with `Result.mapError` to IWSAM leaves. The demo output must not change. Four rubric checks review the composition, the edge type, kept validation logic, and speculative types. |
 | `fsharp-env-capabilities` | `pinned-leaf` | A fix for a leaf whose `#IProvideX` env was pinned to the first caller (FS0064, then FS0193). |
 | `fsharp-env-capabilities` | `deterministic-salt` | A test env with fixed salt bytes. The accessor must not expose `System.Random`, and the fake must not subclass it. |
-| `parse-dont-validate` | `registration` | Parsed domain types with private representations. A probe calls the refactored functions, and two scripts must fail to compile. |
+| `parse-dont-validate` | `registration` | Parsed domain types with private representations. A grader probe calls the refactored functions, and two scripts must fail to compile. |
+| `fsharp-async-composition` | `cancel-bridge` | A non-blocking `handle` over an Async library. A grader probe cancels the token and checks that the work stops. For a bad id, the task must fault with the original `ArgumentOutOfRangeException`. The grader probe also checks the fire-and-forget audit. |
+| `fsharp-async-composition` | `dashboard-load` | Concurrent panel loads over a Task-based client. A grader probe checks that `PanelNotFound` becomes `Error`. `Async.AwaitTask` wraps `PanelNotFound` in `AggregateException`. The missing panel must cancel a slow sibling. Each retry must call the client again. |
+| `fsharp-async-composition` | `valuetask-port` | A port of `IFrameSource.ReadAsync` to `ValueTask<int>`. A grader probe uses a pooled source that throws when one `ValueTask` is read twice. |
 | `optimize-fsharp-typecheck-graph` | `false-edges` | The global `AutoOpen` module that gates every file, a fix that removes the false edges, and no speed claim without three timed builds. |
-| `fsharp-failure-paths` | `invoice` | `invoice` returns `Result`. A probe injects an empty order, a missing price, a failed price fetch, a missing currency setting, and two invalid lines. Each must return an `Error`. The errors for the missing price, the failed fetch, the missing setting, and the invalid lines must name their causes. A valid order must give the same summary. |
+| `fsharp-failure-paths` | `invoice` | `invoice` returns `Result`. A grader probe injects an empty order, a missing price, a failed price fetch, a missing currency setting, and two invalid lines. Each must return an `Error`. The errors for the missing price, the failed fetch, the missing setting, and the invalid lines must name their causes. A valid order must give the same summary. |
+| `fsharp-idiom-review` | `port-order-report` | A port of a short C# class to an F# script. The class has a value tuple, an `out` parameter, an `if`/`else if` chain on strings, `foreach` accumulators, and an index loop. A grader probe checks the `render` text for seven orders under a culture with a comma decimal separator, including midpoint rounding, a zero discount for a known code, and both tier boundaries. Five rubric checks review the totals record, the option return, `match` on the code, no mutable accumulators, and no list index. |
 | `fsharp-verify-api` | `cli-options` | Command-line parsing with `System.CommandLine` 2.0.0, whose API differs from the beta API that most models remember. The project must keep version 2.0.0 and build. The grader runs the app with valid options, a missing `--name`, `--count 0`, `--help`, and an unknown option. Models often know this API, so the task shows a small effect. |
 | `fsharp-verify-api` | `order-props` | FsCheck 3.4.0 generators and a property check in an `.fsx` script. FsCheck 3 moved the F# API to `FsCheck.FSharp` and changed `Gen.sample` and `Config`. A probe samples the generators, checks the constraints, counts the property tests, and checks that a wrong total throws. The `#r` line must keep version 3.4.0. |
 

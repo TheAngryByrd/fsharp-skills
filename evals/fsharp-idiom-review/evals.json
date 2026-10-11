@@ -1,0 +1,40 @@
+{
+  "skill": "fsharp-idiom-review",
+  "contaminationKeywords": [
+    "idiomatic F#",
+    "C#-shaped"
+  ],
+  "tasks": [
+    {
+      "id": "port-order-report",
+      "files": [
+        "inputs/OrderReport.cs",
+        "inputs/Domain.fsx"
+      ],
+      "grader": "graders/port-order-report.ps1",
+      "prompt": "Port the OrderReport class in OrderReport.cs to F#. Write it in a new script, OrderReport.fsx, that starts with #load \"Domain.fsx\" and uses the Order and OrderLine types from Domain.fsx. Use the camelCase names of the C# methods for the F# functions: computeTotals, tryGetDiscountRate, tier, firstBackordered, and render. render must take an Order and return the same text as the C# Render method. Do not change OrderReport.cs or Domain.fsx. The script must load with `dotnet fsi OrderReport.fsx`.",
+      "rubric": [
+        {
+          "id": "totals-record",
+          "question": "Does computeTotals return a record with named fields, for example { Subtotal: decimal; Discount: decimal; ItemCount: int }, and not a tuple such as decimal * decimal * int or (subtotal, discount, itemCount)?"
+        },
+        {
+          "id": "try-option",
+          "question": "Does tryGetDiscountRate return an option, for example Some 0.10m or None, and not a bool * decimal tuple such as (true, 0.10m), a byref, or an outref parameter?"
+        },
+        {
+          "id": "code-match",
+          "question": "Does tryGetDiscountRate select the rate with a match expression on the code, for example | \"SAVE10\" -> ..., and not with an if / elif chain such as if code = \"SAVE10\" then?"
+        },
+        {
+          "id": "totals-no-mutable",
+          "question": "Does computeTotals compute the subtotal and item count without let mutable and without a for loop that updates a variable, for example with List.sumBy or List.fold?"
+        },
+        {
+          "id": "lines-no-index",
+          "question": "Does render number the order lines in one walk of the list, for example with List.mapi, List.iteri, Seq.mapi, or List.indexed, and not by reading the list by position, such as order.Lines.[i], order.Lines[i], or List.item i?"
+        }
+      ]
+    }
+  ]
+}

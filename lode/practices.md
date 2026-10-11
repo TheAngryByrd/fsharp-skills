@@ -24,13 +24,21 @@ These files stop parent MSBuild files, such as central package management, from 
 The runner compares each probe's JIT and native results with an expected verdict: `same`, `throws`, or `differs`.
 Each metadata fix needs its own small exe. A fix in a shared exe keeps metadata for every probe in that exe.
 
+The async composition proof runner runs `Proofs.fsx` with FSI and builds a `StateMachine` project in Release.
+FSI does not report FS3511, so the state machine check needs a Release project build.
+The runner reuses the Native AOT isolation files with its own temp artifact folder.
+Write each `do!` and `return` on its own line in proof scripts. A one-line `async { do! x; return y }` gives FS0748.
+
+Async semantics graders run the agent's code with a grader probe and fake dependencies. A cancellation grader checks that the inner work stops, not only that the task completes.
+A ValueTask grader needs a pooled `IValueTaskSource` that resets on `GetResult`. A `Task`-backed `ValueTask` hides a second read.
+
 Skill evals live in `evals/<skill>/`, outside the skill directory, so installed skills do not carry them.
 [evals/README.md](../evals/README.md) documents the runner, the task format, and the grader contract.
 An eval task must depend on a skill fact that the agent cannot guess or check during a normal build. A cautious agent passed the first `fsharp-native-aot` tasks without the skill, so those tasks measured nothing.
 Graders run the agent's output, for example as a JIT build and as a native exe.
 Before you use a grader, test it against a known good result and a known bad result.
 Text rules in graders reject valid alternatives, for example `and` type declarations or a `Result` return. Prefer checks that run the agent's code. Grade a result folder again with `evals/grade-evals.ps1` after a grader fix.
-Graders for silent defects use fault injection. The `parse-dont-validate` and `fsharp-failure-paths` graders load the agent's script into a probe that calls its functions with failing input and prints `PASS` or `FAIL` for each case.
+Graders for silent defects use fault injection. The `parse-dont-validate` and `fsharp-failure-paths` graders load the agent's script into a grader probe that calls its functions with failing input and prints `PASS` or `FAIL` for each case.
 A grader that matches error text accepts any error shape: a string, a list, or a union. It checks that the printed error names the cause, for example the missing key.
 A naive fix that wraps the result in `Result` but keeps the default, the catch-all handler, and `List.head errors` must fail the grader. Test the grader against that fix as well as against the original input and a known good result.
 Eval workspaces live in the temp directory. A parent `global.json` above this repository pins SDK 8, and a parent `Directory.Packages.props` turns on central package management.
@@ -46,6 +54,24 @@ Skill text must not contain the answer to its eval task. The `fsharp-verify-api`
 A lookup that the skill recommends must exit 0 when a member is missing. The runner counts each non-zero `dotnet fsi` call as a failed build.
 `evals/fsharp-verify-api/tests/Grader.Tests.ps1` runs both graders against committed good, old API, stub, and downgrade workspaces, and checks each check result by name.
 The `failedBuilds` metric counts each non-zero `dotnet run`. A CLI task that tests error exits with `dotnet run` adds failed builds that are not compiler errors.
+
+A task can declare `rubric` items (`id`, `question`) for problems that builds and tests do not show: non-idiomatic shape, speculative code, and missed reuse.
+The task grader calls `Invoke-Rubric` from `evals/lib/Grading.psm1`, which returns one three-state check for each item.
+The judge sees only the questions and a `git diff --no-index --ignore-cr-at-eol` of the task inputs (`before/`) against the workspace (`after/`), without `TASK.md` or skill folders. It must not see the mode or the skill text.
+The diff replaces the install name `<skill>-eval` with `<skill>`. Text that the agent writes about a skill can still reach the judge.
+A judge answer counts only with a quote of 4 or more characters inside one hunk code line (added, removed, or unchanged). Headers, `@@` lines, and quotes on more than one line do not count.
+A missing or invented quote, a malformed judge reply, a judge failure, an invalid `SKILL_EVAL_JUDGE`, or a missing `git` gives `passed = null`. A rubric item without an `id` or a `question` skips all items of the task. After `Invoke-Rubric` reads `evals.json`, it does not throw, so the other checks of the grader stay. A malformed `evals.json` still throws.
+The diff uses `--no-ext-diff` and `--no-textconv`, because an external diff tool in the user's git config writes no hunks.
+The check text is `Rubric <id>: <question>`. The summary pairs checks by text, so a reworded question needs a regrade of old results.
+Native output is decoded as UTF-8 for the diff and the judge. The Windows console code page otherwise garbles non-ASCII code, and the quotes then do not match.
+The judge command is the JSON array in `SKILL_EVAL_JUDGE` (`off` skips). The default is `claude -p --model haiku` with no tools, no setting sources, and its own `--system-prompt`, run in an empty temp directory. Without `--system-prompt`, the judge receives the user's instructions.
+A rubric task for idiomatic shape must leave the shape open. The `fsharp-idiom-review` task `port-order-report` asks for a port of a C# class and fixes only the function names (camelCase of the C# methods) and `render : Order -> string`. The prompt does not say "idiomatic" and does not name records or options. A line-by-line port then keeps the C# shape: a tuple, a `bool * value` pair, an `if`/`elif` chain, mutable accumulators, and a list index.
+Its grader probe checks behavior only through `render`, so any inner shape passes the probe. Each rubric item is also a checklist item in the skill.
+Ambiguous rubric wording is the main cause of different answers between grades. Grade the same workspaces two or more times before you trust a rubric. `evals/tests/Rubric.Tests.ps1` tests the function with a fake judge.
+
+```json
+"rubric": [{ "id": "direct-composition", "question": "Does placeOrder call each leaf function directly, with no Result.mapError?" }]
+```
 
 Check local discovery from the repository root:
 
@@ -67,11 +93,13 @@ For compile-time break tests, check the expected diagnostic as well as compilati
 Proof runners reject unexpected compiler errors and preserve the complete inferred signatures for inspection.
 The runners require PowerShell 7.2 or later so redirected native stderr does not terminate expected compiler-failure checks.
 Successful example execution does not assert the printed runtime outcomes. Compare those outcomes with each skill's findings document.
-The `fsharp-failure-paths` proof runner is the exception: `FailurePaths.fsx` compares each outcome with an expected value and exits with code 1 on a mismatch. It has no compile-time break tests and prints no inferred signatures.
+The `fsharp-failure-paths` and `fsharp-async-composition` proof runners are exceptions. `FailurePaths.fsx` compares each outcome with an expected value and exits with code 1 on a mismatch. The failure-path runner has no compile-time break tests and prints no inferred signatures.
+The async composition runner checks each outcome in `Proofs.fsx` and fails on a mismatch. It also checks that `StartCrash.fsx` stops the process and that the FS3511 warning occurs only in `Dynamic.fs`. The async runner has no compile-time break tests and prints no inferred signatures.
+The idiom review runner checks that each before form in `Idioms.fsx` gives the same result as its after form, and that `static member X = expr` runs `expr` on each access.
 The `fsharp-verify-api` runner also asserts: it lists Expecto 10 and 11, `FSharp.Core`, and extension members through `scripts/show-api.ps1` and fails when an expected member is missing or a removed member is present.
 `ShowApi.fsx` prints F# source names from `CompilationSourceNameAttribute`, so `ListModule.TryHead` shows as `tryHead`. It also lists extension methods whose first parameter is the type or one of its bases.
 `show-api.ps1` writes a temporary `.fsx` with a pinned `#r "nuget: ..."` line and runs it from `scripts/`, so `scripts/global.json` selects the SDK.
-
+ 
 Example format check, when `skills-ref` is installed:
 
 ```powershell
