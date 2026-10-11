@@ -15,6 +15,8 @@
 - Contamination - A global skill on the same subject that a baseline run can load.
 - Turn - One agent step in an eval transcript. Each agent counts it differently (see `evals/README.md`).
 - Failed build call - A shell command that runs `dotnet build`, `dotnet test`, `dotnet run`, or `dotnet fsi` and exits non-zero or prints an `error FS` line.
+- Fault injection - A grader step that calls the agent's code with failing input (empty input, missing key, failed dependency) and checks that each failure returns an `Error` that names its cause.
+- Failure path - The code path that runs when a call can fail. A silent failure path crashes at runtime or hides the failure behind a default.
 - Silent data loss - Native exe output that has less content than the JIT output, with no exception.
 
 Use these terms consistently in [practices](practices.md) and skill documentation. A failure alone does not prove the expected compiler constraint.
