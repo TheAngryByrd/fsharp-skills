@@ -1,7 +1,7 @@
 ---
 name: fsharp-async-composition
-description: Compose F# Task, Async, ValueTask, and computation expressions (task, async, valueTask, cancellableTask, taskResult) with the correct semantics. Covers builder choice, hot versus cold start, conversion at Task and Async boundaries, cancellation token flow, exception wrapping, ValueTask single-consumption, and FS0193, FS3501, and FS3511 diagnostics. Use when F# code mixes Task and Async, returns or consumes ValueTask, passes a CancellationToken, starts fire-and-forget work, or changes a function from one async type to another.
-compatibility: Requires the .NET 10 SDK, PowerShell 7.2 or later, and NuGet access for the proof runner. Results were verified with SDK 10.0.401 and FSharp.Core 10.1.401.
+description: Compose F# Task, Async, and ValueTask code with the correct semantics and builder (task, async, valueTask, cancellableTask, taskResult). Covers hot and cold start, boundary conversion, cancellation flow, exception wrapping, and ValueTask values read twice. Also covers FS0193, FS3501, and FS3511. Use when F# code mixes Task and Async, or returns or consumes ValueTask. Also use when code passes a CancellationToken, starts fire-and-forget work, or changes its async type.
+compatibility: Requires the .NET 10 SDK, PowerShell 7.2 or later, and NuGet access for the proof runner. The proof runner verified the results with SDK 10.0.401 and FSharp.Core 10.1.401.
 ---
 
 # F# async composition
@@ -133,8 +133,7 @@ else
 
 ## Verify
 
-1. For each function with a `CancellationToken`, write a test that cancels during the work and
-   checks that the work stops, not only that the returned task completes.
+1. Test each function that takes a `CancellationToken`. Cancel during the work. Check that the work stops, not only that the returned task completes.
 2. For each fire-and-forget call, check that the side effect happens.
 3. For a `ValueTask` API, test with a source that throws on a second read, as in
    [scripts/Proofs.fsx](scripts/Proofs.fsx).

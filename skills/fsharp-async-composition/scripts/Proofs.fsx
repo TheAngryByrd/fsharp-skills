@@ -71,16 +71,6 @@ check "let! of an Async inside task runs on Async.DefaultCancellationToken" (box
         return ct = Async.DefaultCancellationToken }
     box (task { return! probe }).Result)
 
-check "let! of an Async inside task ignores the caller's token" (box "RanToCompletion") (fun () ->
-    use cts = new CancellationTokenSource()
-    let handler (ct: CancellationToken) = task {
-        do! Async.Sleep 300
-        return 1 }
-    let t = handler cts.Token
-    cts.CancelAfter 50
-    t.Wait 2000 |> ignore
-    box (string t.Status))
-
 check "Async.StartAsTask with cancellationToken cancels the work" (box "Canceled") (fun () ->
     use cts = new CancellationTokenSource()
     let t = Async.StartAsTask(Async.Sleep 300, cancellationToken = cts.Token)

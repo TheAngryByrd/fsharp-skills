@@ -8,6 +8,7 @@
 - Lode - Persistent project knowledge under `lode/`.
 - Native AOT - .NET ahead-of-time compilation to a native exe, enabled by `PublishAot`.
 - Probe - A named case in a proof app whose output the runner compares between builds.
+- Grader probe - An F# script that a grader runs with the agent's code. It calls the agent's functions, often with fake dependencies, and prints one PASS or FAIL line for each check.
 - JIT-versus-native diff - A comparison of the same probe output from `dotnet run` and from the native exe.
 - Eval - A task that an agent runs with and without a skill, graded by a script.
 - Grader - A script that checks an agent's output and writes `grading.json`.
