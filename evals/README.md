@@ -172,3 +172,11 @@ Write-Checks (Join-Path $OutDir 'grading.json') $checks
 | `parse-dont-validate` | `registration` | Parsed domain types with private representations. A probe calls the refactored functions, and two scripts must fail to compile. |
 | `optimize-fsharp-typecheck-graph` | `false-edges` | The global `AutoOpen` module that gates every file, a fix that removes the false edges, and no speed claim without three timed builds. |
 | `fsharp-failure-paths` | `invoice` | `invoice` returns `Result`. A probe injects an empty order, a missing price, a failed price fetch, a missing currency setting, and two invalid lines. Each must return an `Error`. The errors for the missing price, the failed fetch, the missing setting, and the invalid lines must name their causes. A valid order must give the same summary. |
+| `fsharp-verify-api` | `cli-options` | Command-line parsing with `System.CommandLine` 2.0.0, whose API differs from the beta API that most models remember. The project must keep version 2.0.0 and build. The grader runs the app with valid options, a missing `--name`, `--count 0`, `--help`, and an unknown option. Models often know this API, so the task shows a small effect. |
+| `fsharp-verify-api` | `order-props` | FsCheck 3.4.0 generators and a property check in an `.fsx` script. FsCheck 3 moved the F# API to `FsCheck.FSharp` and changed `Gen.sample` and `Config`. A probe samples the generators, checks the constraints, counts the property tests, and checks that a wrong total throws. The `#r` line must keep version 3.4.0. |
+
+Test both `fsharp-verify-api` graders against a known good result, the stub, old API code, and a package downgrade:
+
+```powershell
+pwsh ./evals/fsharp-verify-api/tests/Grader.Tests.ps1
+```

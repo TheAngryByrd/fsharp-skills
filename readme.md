@@ -1,7 +1,7 @@
 # F# skills
 
 Reusable instructions for AI agents working on F# code, packaged in the [Agent Skills format](https://agentskills.io/home).
-The skills cover domain design, dependency management, error composition, failure paths, compiler performance, and Native AOT.
+The skills cover domain design, dependency management, error composition, failure paths, API verification, compiler performance, and Native AOT.
 
 ## Skills
 
@@ -13,6 +13,7 @@ The skills cover domain design, dependency management, error composition, failur
 | [fsharp-env-capabilities](skills/fsharp-env-capabilities/SKILL.md) | Passes dependencies through a generic environment with small `IProvideX` capability interfaces. | Lets the compiler infer dependency requirements and lets tests supply only the dependencies a function needs. |
 | [fsharp-native-aot](skills/fsharp-native-aot/SKILL.md) | Makes F# formatting, logging, JSON, and configuration work under Native AOT, and compares JIT output with native exe output. | F# formatting can throw or silently lose union and tuple data in a native exe, and publish warnings do not point at that code. |
 | [fsharp-failure-paths](skills/fsharp-failure-paths/SKILL.md) | Replaces partial functions, `failwith`, hidden defaults, swallowed exceptions, and first-error-only validation with explicit `Error` results. | The compiler accepts these defects, so they reach human review. Review evidence ranks failure-path handling as a top category of comments on agent F# code. |
+| [fsharp-verify-api](skills/fsharp-verify-api/SKILL.md) | Lists the real signatures of a package version before F# code uses them, and checks opens, references, existing helpers, and `.fsx` `#r` lines. | Agents write the API that they remember. FS0039 is the top compiler error in agent sessions, and each wrong guess costs a failed build. |
 
 The patterns can work together: the environment supplies capabilities, and IWSAM interfaces describe possible errors.
 
@@ -69,6 +70,10 @@ Use fsharp-failure-paths to find the partial functions, defaults, and caught exc
 ```
 
 ```text
+Use fsharp-verify-api to list the System.CommandLine 2.0.0 signatures before you add command-line parsing.
+```
+
+```text
 Use parse-dont-validate to model this input with private constructors and explicit parse errors.
 ```
 
@@ -92,6 +97,9 @@ Read the selected skill's **Verify** section for its runner and expected compile
 Compile-time break tests intentionally fail compilation. Their runners check for the expected diagnostics.
 Compare printed example outcomes with the findings documents. The IWSAM and environment runners do not assert these runtime outcomes.
 The failure-path runner, `scripts/run.ps1`, asserts its outcomes. It fails when an unsafe form does not fail or a safe form does not report the failure.
+
+The API verification skill includes `scripts/show-api.ps1`, which lists the public API of a NuGet package version. It requires the .NET 10 SDK, PowerShell 7.2 or later, and NuGet access.
+Its runner, `scripts/run.ps1`, lists Expecto 10.2.3 and 11.1.1, an `FSharp.Core` module function, and an extension method. It fails when an expected member is missing or a removed member is present.
 
 The Native AOT skill includes a project-based runner, `scripts/run.ps1`. It requires the .NET 10 SDK, PowerShell 7.2 or later, and NuGet access. It also requires the platform Native AOT toolchain: MSVC and the Windows SDK on Windows, or clang on Linux.
 The runner builds and publishes a probe app and compares JIT output with native exe output. It fails when a probe result differs from the expected verdict or the expected native text. Compare the printed results with the skill's findings document.

@@ -40,6 +40,12 @@ Pass rate does not measure skills for compiler-caught problems such as FS0039 an
 So each `run.json` records `turns` and `failedBuilds`, and the summary shows their means for each target, task, and mode.
 `Get-AgentMetrics` in `evals/lib/Agents.psm1` parses them from all three transcript formats. Each agent counts turns differently, so compare turns only within one target.
 `evals/tests/Metrics.Tests.ps1` checks the parser and the summary against small transcript fixtures in `evals/tests/fixtures/`.
+A task for a compiler-caught skill needs a library version whose API differs from the one that models remember. The `fsharp-verify-api` `cli-options` task uses `System.CommandLine` 2.0.0. Claude Sonnet and Codex already knew that API and passed without the skill. The `order-props` task uses FsCheck 3.4.0, whose F# API moved to `FsCheck.FSharp`. Claude Sonnet and Codex also knew that API. In one run each, the skill added turns for them and helped only opencode on `cli-options`. A task that shows lift needs an API released after the models' training data.
+Its grader also checks that the package version did not change. An agent can otherwise downgrade to the version that it remembers.
+Skill text must not contain the answer to its eval task. The `fsharp-verify-api` reference teaches the lookup, not a table of moved members. Its examples and proof script use packages that no eval task uses.
+A lookup that the skill recommends must exit 0 when a member is missing. The runner counts each non-zero `dotnet fsi` call as a failed build.
+`evals/fsharp-verify-api/tests/Grader.Tests.ps1` runs both graders against committed good, old API, stub, and downgrade workspaces, and checks each check result by name.
+The `failedBuilds` metric counts each non-zero `dotnet run`. A CLI task that tests error exits with `dotnet run` adds failed builds that are not compiler errors.
 
 Check local discovery from the repository root:
 
@@ -62,6 +68,9 @@ Proof runners reject unexpected compiler errors and preserve the complete inferr
 The runners require PowerShell 7.2 or later so redirected native stderr does not terminate expected compiler-failure checks.
 Successful example execution does not assert the printed runtime outcomes. Compare those outcomes with each skill's findings document.
 The `fsharp-failure-paths` proof runner is the exception: `FailurePaths.fsx` compares each outcome with an expected value and exits with code 1 on a mismatch. It has no compile-time break tests and prints no inferred signatures.
+The `fsharp-verify-api` runner also asserts: it lists Expecto 10 and 11, `FSharp.Core`, and extension members through `scripts/show-api.ps1` and fails when an expected member is missing or a removed member is present.
+`ShowApi.fsx` prints F# source names from `CompilationSourceNameAttribute`, so `ListModule.TryHead` shows as `tryHead`. It also lists extension methods whose first parameter is the type or one of its bases.
+`show-api.ps1` writes a temporary `.fsx` with a pinned `#r "nuget: ..."` line and runs it from `scripts/`, so `scripts/global.json` selects the SDK.
 
 Example format check, when `skills-ref` is installed:
 
