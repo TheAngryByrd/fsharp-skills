@@ -4,6 +4,7 @@
 - [summary.md](summary.md): repository scope.
 - [terminology.md](terminology.md): shared terms.
 - [practices.md](practices.md): skill packaging, verification, and eval design.
+- [agent-fsharp-failures.md](agent-fsharp-failures.md): ranked evidence of agent F# failures and the skill for each area.
 - [evals/README.md](../evals/README.md): eval runner usage and grader contract (outside the Lode).
 - `plans/`: roadmaps and open work.
 - `tmp/`: ignored session notes and handovers.
@@ -20,4 +21,5 @@ flowchart TD
     Index --> Summary[Scope]
     Index --> Terms[Terminology]
     Index --> Practices[Skill practices]
+    Index --> Failures[Agent F# failure evidence]
 ```

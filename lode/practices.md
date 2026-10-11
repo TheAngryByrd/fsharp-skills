@@ -24,15 +24,30 @@ These files stop parent MSBuild files, such as central package management, from 
 The runner compares each probe's JIT and native results with an expected verdict: `same`, `throws`, or `differs`.
 Each metadata fix needs its own small exe. A fix in a shared exe keeps metadata for every probe in that exe.
 
+The async composition proof runner runs `Proofs.fsx` with FSI and builds a `StateMachine` project in Release.
+FSI does not report FS3511, so the state machine check needs a Release project build.
+The runner reuses the Native AOT isolation files with its own temp artifact folder.
+Write each `do!` and `return` on its own line in proof scripts. A one-line `async { do! x; return y }` gives FS0748.
+
+Async semantics graders run the agent's code with a grader probe and fake dependencies. A cancellation grader checks that the inner work stops, not only that the task completes.
+A ValueTask grader needs a pooled `IValueTaskSource` that resets on `GetResult`. A `Task`-backed `ValueTask` hides a second read.
+
 Skill evals live in `evals/<skill>/`, outside the skill directory, so installed skills do not carry them.
 [evals/README.md](../evals/README.md) documents the runner, the task format, and the grader contract.
 An eval task must depend on a skill fact that the agent cannot guess or check during a normal build. A cautious agent passed the first `fsharp-native-aot` tasks without the skill, so those tasks measured nothing.
 Graders run the agent's output, for example as a JIT build and as a native exe.
 Before you use a grader, test it against a known good result and a known bad result.
 Text rules in graders reject valid alternatives, for example `and` type declarations or a `Result` return. Prefer checks that run the agent's code. Grade a result folder again with `evals/grade-evals.ps1` after a grader fix.
+Graders for silent defects use fault injection. The `parse-dont-validate` and `fsharp-failure-paths` graders load the agent's script into a grader probe that calls its functions with failing input and prints `PASS` or `FAIL` for each case.
+A grader that matches error text accepts any error shape: a string, a list, or a union. It checks that the printed error names the cause, for example the missing key.
+A naive fix that wraps the result in `Result` but keeps the default, the catch-all handler, and `List.head errors` must fail the grader. Test the grader against that fix as well as against the original input and a known good result.
 Eval workspaces live in the temp directory. A parent `global.json` above this repository pins SDK 8, and a parent `Directory.Packages.props` turns on central package management.
 Graders run `dotnet` from the project directory because `dotnet` selects its SDK from the working directory.
 A run with the skill counts only when the transcript shows that the agent loaded the skill.
+Pass rate does not measure skills for compiler-caught problems such as FS0039 and FS0078. The agent still finishes, but after many failed builds.
+So each `run.json` records `turns` and `failedBuilds`, and the summary shows their means for each target, task, and mode.
+`Get-AgentMetrics` in `evals/lib/Agents.psm1` parses them from all three transcript formats. Each agent counts turns differently, so compare turns only within one target.
+`evals/tests/Metrics.Tests.ps1` checks the parser and the summary against small transcript fixtures in `evals/tests/fixtures/`.
 
 A task can declare `rubric` items (`id`, `question`) for problems that builds and tests do not show: non-idiomatic shape, speculative code, and missed reuse.
 The task grader calls `Invoke-Rubric` from `evals/lib/Grading.psm1`, which returns one three-state check for each item.
@@ -70,6 +85,8 @@ For compile-time break tests, check the expected diagnostic as well as compilati
 Proof runners reject unexpected compiler errors and preserve the complete inferred signatures for inspection.
 The runners require PowerShell 7.2 or later so redirected native stderr does not terminate expected compiler-failure checks.
 Successful example execution does not assert the printed runtime outcomes. Compare those outcomes with each skill's findings document.
+The `fsharp-failure-paths` and `fsharp-async-composition` proof runners are exceptions. `FailurePaths.fsx` compares each outcome with an expected value and exits with code 1 on a mismatch. The failure-path runner has no compile-time break tests and prints no inferred signatures.
+The async composition runner checks each outcome in `Proofs.fsx` and fails on a mismatch. It also checks that `StartCrash.fsx` stops the process and that the FS3511 warning occurs only in `Dynamic.fs`. The async runner has no compile-time break tests and prints no inferred signatures.
 
 Example format check, when `skills-ref` is installed:
 

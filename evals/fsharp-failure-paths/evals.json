@@ -1,0 +1,18 @@
+{
+  "skill": "fsharp-failure-paths",
+  "contaminationKeywords": [
+    "failure path",
+    "partial function",
+    "swallowed exception"
+  ],
+  "tasks": [
+    {
+      "id": "invoice",
+      "files": [
+        "inputs/Invoice.fsx"
+      ],
+      "grader": "graders/invoice.ps1",
+      "prompt": "Invoice.fsx builds an invoice summary. In production, invoice crashes on some orders. Change invoice to return a Result instead of throwing. Keep the parameters of invoice, and keep the success summary text unchanged. The script must load with `dotnet fsi`."
+    }
+  ]
+}

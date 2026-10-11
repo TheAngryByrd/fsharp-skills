@@ -56,7 +56,27 @@ For a run with the skill, the runner copies the skill to `ws/.claude/skills/<ski
 
 The workspace is in the temp directory, not in the repository. MSBuild and `dotnet` read `Directory.*.props` and `global.json` files from parent directories. A workspace inside a checkout can inherit settings that change the result.
 
-Results go to `<run-id>/summary.md` and `<run-id>/results.json`. The summary shows the counted runs, pass rate, skipped checks, time, and tokens for each target, task, and mode. It also lists each check with its result in both modes.
+Results go to `<run-id>/summary.md` and `<run-id>/results.json`. The summary shows the counted runs, pass rate, skipped checks, time, tokens, mean turns, and mean failed builds for each target, task, and mode. It also lists each check with its result in both modes.
+
+## Effort metrics
+
+Some skills do not change the pass rate. The agent finishes without the skill, but only after many failed builds. Each `run.json` records two values that show this effort:
+
+- `turns`: the number of agent turns.
+  - Claude Code: `num_turns` from the final `result` event. A stopped run has no `result` event. For that run, the runner uses the number of tool calls plus 1.
+  - Codex: the number of completed tool items (commands, file changes, and other tools) plus 1. Codex does not report each model request.
+  - opencode: the number of `step_finish` events.
+- `failedBuilds`: the number of failed build calls. A failed build call is a shell command that runs `dotnet build`, `dotnet test`, `dotnet run`, or `dotnet fsi`. It also exits with a non-zero code or prints an `error FS<number>` line. The runner removes a `pwsh -Command` or `bash -lc` wrapper and ignores text in quotes. `dotnet` must then start a command, for example after `&&`, `;`, or `|`. So `rg 'dotnet build'` is not a build call, but `& "C:\Program Files\dotnet\dotnet.exe" build` is. The runner reads the exit code from the Claude Code `is_error` flag, the Codex `exit_code`, and the opencode `metadata.exit` or `error` status.
+
+Each agent counts turns in a different way. Compare turns between modes of one target, not between agents. A value is `null` when the transcript is missing or empty.
+
+Test the metric parser and the summary with the transcript fixtures in `tests/fixtures/`:
+
+```powershell
+pwsh ./evals/tests/Metrics.Tests.ps1
+```
+
+The script exits with code 1 and lists each failed check.
 
 ## Grade again
 
@@ -66,7 +86,7 @@ After you change a grader, grade an existing result folder again. The agents do 
 pwsh ./evals/grade-evals.ps1 -ResultDir <OutputRoot>/<run-id>
 ```
 
-Use `-Task` to grade only some tasks. The script updates each `run.json`, `results.json`, and `summary.md`.
+Use `-Task` to grade only some tasks. The script updates each `run.json`, `results.json`, and `summary.md`. It keeps the `turns` and `failedBuilds` values in each `run.json`. When a `run.json` does not have these values, the script reads them from `transcript.jsonl`.
 
 ## Isolation
 
@@ -210,5 +230,9 @@ pwsh ./evals/tests/Rubric.Tests.ps1
 | `fsharp-iwsam-errors` | `iwsam-refactor` | A refactor from nested error unions with `Result.mapError` to IWSAM leaves. The demo output must not change. Four rubric checks review the composition, the edge type, kept validation logic, and speculative types. |
 | `fsharp-env-capabilities` | `pinned-leaf` | A fix for a leaf whose `#IProvideX` env was pinned to the first caller (FS0064, then FS0193). |
 | `fsharp-env-capabilities` | `deterministic-salt` | A test env with fixed salt bytes. The accessor must not expose `System.Random`, and the fake must not subclass it. |
-| `parse-dont-validate` | `registration` | Parsed domain types with private representations. A probe calls the refactored functions, and two scripts must fail to compile. |
+| `parse-dont-validate` | `registration` | Parsed domain types with private representations. A grader probe calls the refactored functions, and two scripts must fail to compile. |
+| `fsharp-async-composition` | `cancel-bridge` | A non-blocking `handle` over an Async library. A grader probe cancels the token and checks that the work stops. For a bad id, the task must fault with the original `ArgumentOutOfRangeException`. The grader probe also checks the fire-and-forget audit. |
+| `fsharp-async-composition` | `dashboard-load` | Concurrent panel loads over a Task-based client. A grader probe checks that `PanelNotFound` becomes `Error`. `Async.AwaitTask` wraps `PanelNotFound` in `AggregateException`. The missing panel must cancel a slow sibling. Each retry must call the client again. |
+| `fsharp-async-composition` | `valuetask-port` | A port of `IFrameSource.ReadAsync` to `ValueTask<int>`. A grader probe uses a pooled source that throws when one `ValueTask` is read twice. |
 | `optimize-fsharp-typecheck-graph` | `false-edges` | The global `AutoOpen` module that gates every file, a fix that removes the false edges, and no speed claim without three timed builds. |
+| `fsharp-failure-paths` | `invoice` | `invoice` returns `Result`. A grader probe injects an empty order, a missing price, a failed price fetch, a missing currency setting, and two invalid lines. Each must return an `Error`. The errors for the missing price, the failed fetch, the missing setting, and the invalid lines must name their causes. A valid order must give the same summary. |

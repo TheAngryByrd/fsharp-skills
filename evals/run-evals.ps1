@@ -91,6 +91,8 @@ foreach ($t in $targets) {
                 $info.inputTokens = $metrics.InputTokens
                 $info.outputTokens = $metrics.OutputTokens
                 $info.costUsd = $metrics.CostUsd
+                $info.turns = $metrics.Turns
+                $info.failedBuilds = $metrics.FailedBuilds
                 $info.skillUsed = $metrics.SkillUsed
                 $info.globalSkillUsed = $metrics.GlobalSkillUsed
 
@@ -110,7 +112,8 @@ foreach ($t in $targets) {
                 $info | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $runDir 'run.json') -Encoding utf8
                 if ($m -eq 'with' -and -not $info.skillUsed) { Write-Warning "    The agent did not load $(Get-InstallName $Skill) in this run." }
                 if ($info.globalSkillUsed) { Write-Warning "    The agent loaded a global copy of $Skill in this run." }
-                Write-Host ("    {0}/{1} checks passed, {2} skipped, {3}s, skill used: {4}" -f $info.passed, ($info.passed + $info.failed), $info.skipped, $info.seconds, $info.skillUsed)
+                Write-Host ("    {0}/{1} checks passed, {2} skipped, {3}s, {4} turns, {5} failed builds, skill used: {6}" -f $info.passed, ($info.passed + $info.failed), $info.skipped, $info.seconds,
+                    $info.turns, $info.failedBuilds, $info.skillUsed)
                 $results.Add([pscustomobject]$info)
             }
         }
