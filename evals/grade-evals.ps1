@@ -28,6 +28,14 @@ foreach ($file in Get-ChildItem -Path $ResultDir -Filter 'run.json' -Recurse -De
     }
     if (-not $spec) { throw "No evals.json defines task $($run.task)." }
     $skill = $spec.skill
+    $transcript = Join-Path $file.DirectoryName 'transcript.jsonl'
+    $hasMetrics = $run.PSObject.Properties['turns'] -and $run.PSObject.Properties['failedBuilds'] -and $null -ne $run.turns
+    if (-not $hasMetrics -and (Test-Path $transcript)) {
+        $metrics = Get-AgentMetrics -Agent $run.agent -TranscriptPath $transcript -Skill $skill
+        $run | Add-Member -NotePropertyName turns -NotePropertyValue $metrics.Turns -Force
+        $run | Add-Member -NotePropertyName failedBuilds -NotePropertyValue $metrics.FailedBuilds -Force
+        $run | ConvertTo-Json -Depth 6 | Set-Content $file.FullName -Encoding utf8
+    }
     if ($Task.Count -eq 0 -or $run.task -in $Task) {
         $taskSpec = $spec.tasks | Where-Object id -eq $run.task
         $gradeDir = Join-Path $file.DirectoryName 'grade'

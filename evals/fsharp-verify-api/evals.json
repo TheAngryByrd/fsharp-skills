@@ -1,0 +1,28 @@
+{
+  "skill": "fsharp-verify-api",
+  "contaminationKeywords": [
+    "verify api",
+    "API signature",
+    "XML docs",
+    "NuGet cache"
+  ],
+  "tasks": [
+    {
+      "id": "cli-options",
+      "files": [
+        "inputs/Greeter"
+      ],
+      "grader": "graders/cli-options.ps1",
+      "prompt": "Greeter/Greeter.fsproj is a console app that references System.CommandLine 2.0.0. Change Greeter/Program.fs to parse the command line with System.CommandLine. Do not change the package version.\n\n- `--name` is a required string option.\n- `--count` is an int option with default value 1. A value below 1 is a parse error.\n- The app calls `greet name count` and prints nothing else on success.\n- Parse errors, a missing `--name`, and unknown options must print an error and return a non-zero exit code. `--help` must work.\n\nThe project must build with `dotnet build`."
+    },
+    {
+      "id": "order-props",
+      "files": [
+        "inputs/props/Orders.fsx",
+        "inputs/props/OrderProps.fsx"
+      ],
+      "grader": "graders/order-props.ps1",
+      "prompt": "OrderProps.fsx references FsCheck 3.4.0 and loads Orders.fsx. Add these definitions to OrderProps.fsx with FsCheck. Do not change the FsCheck version.\n\n- `lineGen : Gen<OrderLine>`. Sku is one of \"A1\", \"B2\", or \"C3\". Quantity is from 1 to 10. UnitPrice is a whole number from 1 to 100.\n- `orderArb : Arbitrary<OrderLine list>`. Each order is a non-empty list of lines from lineGen.\n- `sampleLines : int -> OrderLine list`. It returns that many lines from lineGen.\n- `checkTotal : (OrderLine list -> decimal) -> unit`. It checks with orderArb that the function returns the sum of Quantity * UnitPrice. It runs exactly 250 tests and throws an exception when the property fails.\n\nOrderProps.fsx must load with `dotnet fsi OrderProps.fsx`."
+    }
+  ]
+}
