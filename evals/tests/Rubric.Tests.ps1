@@ -101,6 +101,12 @@ exit $ExitCode
         Assert-That "a header, multi-line, or tiny quote skips: $quote" ($null -eq $checks[0].passed) ($checks[0] | ConvertTo-Json)
     }
 
+    $checks = Invoke-FakeRubric '{"items":[{"id":"reuse","answer":"yes","quote":"let unchanged = 2"}]}'
+    Assert-That 'a quote from an unchanged context line skips' ($null -eq $checks[0].passed -and $checks[0].evidence -match 'not found') ($checks[0] | ConvertTo-Json)
+
+    $checks = Invoke-FakeRubric '{"items":[{"id":"reuse","answer":"no","quote":"let total = 1"}]}'
+    Assert-That 'a quote from a removed line counts' ($checks[0].passed -eq $false) ($checks[0] | ConvertTo-Json)
+
     $checks = Invoke-FakeRubric '{"items":[{"id":"reuse","answer":"no","quote":"+let total = 42"}]}'
     Assert-That 'a quote with its diff marker matches' ($checks[0].passed -eq $false) ($checks[0] | ConvertTo-Json)
     Assert-That 'check text starts with the item id' ($checks[0].text -like 'Rubric reuse: *') $checks[0].text

@@ -1,9 +1,9 @@
 # Agent F# failure evidence
 
 This file records where coding agents fail when they write F#.
-Each skill ticket in the evidence series uses this file as its evidence source.
+This file is the evidence source for each skill that targets one of these failure areas.
 The raw extracts are not kept. This file holds the complete data.
-See [practices](practices.md) for eval design and [terminology](terminology.md) for shared terms.
+See [eval design](eval-design.md) for eval design and [terminology](terminology.md) for shared terms.
 
 ## Sources
 

@@ -17,12 +17,12 @@
 - Rubric - Yes/no questions in an eval task that a judge model answers about the agent's diff.
 - Judge - The separate model command that answers rubric questions. It sees only the diff and the questions.
 - Turn - One agent step in an eval transcript. Each agent counts it differently (see `evals/README.md`).
-- Failed build call - A shell command that runs `dotnet build`, `dotnet test`, `dotnet run`, or `dotnet fsi` and exits non-zero or prints an `error FS` line.
+- Failed build call - A shell command that runs `dotnet build`, `dotnet test`, `dotnet run`, or `dotnet fsi`. It also exits with a non-zero code or prints an `error FS<number>` line. [evals/README.md "Effort metrics"](../evals/README.md#effort-metrics) gives the parse rules.
 - Fault injection - A grader step that calls the agent's code with failing input (empty input, missing key, failed dependency) and checks that each failure returns an `Error` that names its cause.
 - Failure path - The code path that runs when a call can fail. A silent failure path crashes at runtime or hides the failure behind a default.
 - Silent data loss - Native exe output that has less content than the JIT output, with no exception.
 
-Use these terms consistently in [practices](practices.md) and skill documentation. A failure alone does not prove the expected compiler constraint.
+Use these terms consistently in the Lode, `evals/README.md`, and skill documentation. A failure alone does not prove the expected compiler constraint.
 
 Example proof-script invocation:
 

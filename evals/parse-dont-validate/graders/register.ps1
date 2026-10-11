@@ -20,12 +20,9 @@ Copy-Item $source $dir
 Copy-Item (Join-Path $PSScriptRoot '*.fsx') $dir
 
 $probe = Invoke-Capture dotnet @('fsi', '--nowarn:3535', 'Probe.fsx') -WorkingDirectory $dir
-$results = @($probe.Lines | Where-Object { $_ -match '^(PASS|FAIL) ' })
+$results = @(ConvertFrom-ProbeOutput $probe.Lines)
 $checks += New-Check 'Registration.fsx and the probe compile together' ($probe.ExitCode -eq 0 -and $results.Count -gt 0) $(if ($results.Count -eq 0) { Get-LastLines $probe.Text 6 } else { '' })
-foreach ($line in $results) {
-    $name = ($line -replace '^(PASS|FAIL) ', '') -replace ' \[.*\]$', ''
-    $checks += New-Check $name ($line.StartsWith('PASS')) $(if ($line.StartsWith('FAIL')) { $line } else { '' })
-}
+$checks += $results
 
 foreach ($break in @(
         @{ File = 'BreakLiteral.fsx'; Text = 'A Registration record cannot be built from raw strings and ints' },

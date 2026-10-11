@@ -22,7 +22,7 @@ Copy-Workspace -Workspace $Workspace -Destination $dir
 Copy-Item (Join-Path $PSScriptRoot 'PropsProbe.fsx') $dir
 
 $probe = Invoke-Capture dotnet @('fsi', 'PropsProbe.fsx') -WorkingDirectory $dir
-$results = @($probe.Lines | Where-Object { $_ -match '^(PASS|FAIL) ' })
+$results = @(ConvertFrom-ProbeOutput $probe.Lines)
 $checks += New-Check 'OrderProps.fsx and the probe compile together' ($results.Count -gt 0) $(if ($results.Count -eq 0) { Get-LastLines $probe.Text 6 } else { '' })
 $names = @(
     'sampleLines 300 returns 300 lines'
@@ -33,12 +33,8 @@ $names = @(
     'checkTotal throws for a total that ignores quantity'
 )
 foreach ($name in $names) {
-    $line = $results | Where-Object { ($_ -replace '^(PASS|FAIL) ', '') -replace ' \[.*\]$', '' -eq $name } | Select-Object -First 1
-    if (-not $line) {
-        $checks += New-Check $name $false 'the probe did not run this check'
-    } else {
-        $checks += New-Check $name ($line.StartsWith('PASS')) $(if ($line.StartsWith('FAIL')) { $line } else { '' })
-    }
+    $result = $results | Where-Object text -eq $name | Select-Object -First 1
+    $checks += if ($result) { $result } else { New-Check $name $false 'the probe did not run this check' }
 }
 
 Write-Checks (Join-Path $OutDir 'grading.json') $checks

@@ -97,6 +97,30 @@ function Get-LastLines {
     (($Text -split "`n") | Select-Object -Last $Count) -join "`n"
 }
 
+function ConvertFrom-ProbeOutput {
+    param([string[]]$Lines)
+    foreach ($line in $Lines) {
+        if ($line -notmatch '^(PASS|FAIL) ') { continue }
+        $name = ($line -replace '^(PASS|FAIL) ', '') -replace ' \[.*\]$', ''
+        New-Check $name ($line.StartsWith('PASS')) $(if ($line.StartsWith('FAIL')) { $line } else { '' })
+    }
+}
+
+function Get-ProbeScript {
+    param(
+        [Parameter(Mandatory)][string]$ProbePath,
+        [Parameter(Mandatory)][string]$SourcePath,
+        [Parameter(Mandatory)][string]$Module
+    )
+    $text = Get-Content -Raw $ProbePath
+    $name = [regex]::Escape($Module)
+    # A script that declares `module X =` loads as the nested module X.X.
+    if ((Get-Content -Raw $SourcePath) -match "(?m)^module\s+$name\s*=") {
+        $text = $text -replace "(?m)^open $name\r?$", "open $Module`nopen $Module.$Module"
+    }
+    $text
+}
+
 function Get-TaskSpec {
     param([Parameter(Mandatory)][string]$EvalDir, [Parameter(Mandatory)][string]$TaskId)
     $spec = Get-Content -Raw (Join-Path $EvalDir 'evals.json') | ConvertFrom-Json
@@ -151,7 +175,7 @@ $RubricSchema = @{
     }
 } | ConvertTo-Json -Depth 10 -Compress
 
-$RubricSystemPrompt = 'You review code changes against a rubric. Answer each item with yes or no. Base each answer only on the diff. Copy the quote exactly from the diff.'
+$RubricSystemPrompt = 'You review code changes against a rubric. Answer each item with yes or no. Base each answer only on the diff. Copy the quote exactly from one added or removed diff line.'
 
 function Get-JudgeCommand {
     $configured = $env:SKILL_EVAL_JUDGE
@@ -171,7 +195,7 @@ function Get-RubricPrompt {
     $lines = @(
         'Review the diff below against each rubric item.',
         'Answer "yes" or "no" for each item.',
-        'For each item, give one quote: an exact substring of one diff line, without the leading + or - marker, that shows the answer.',
+        'For each item, give one quote: an exact substring of one added (+) or removed (-) diff line, without the marker, that shows the answer. Unchanged context lines do not count.',
         'If no diff line shows the answer, give an empty quote.',
         'Reply with JSON only, in this shape: {"items":[{"id":"<item id>","answer":"yes","quote":"<exact text from the diff>"}]}',
         '',
@@ -189,7 +213,7 @@ function Get-DiffBodyLines([string]$Diff) {
     foreach ($line in $Diff -split "\r?\n") {
         if ($line.StartsWith('diff --git ')) { $inHunk = $false; continue }
         if ($line.StartsWith('@@')) { $inHunk = $true; continue }
-        if (-not $inHunk -or $line -notmatch '^[+\- ]') { continue }
+        if (-not $inHunk -or $line -notmatch '^[+\-]') { continue }
         $code = ConvertTo-NormalizedCode $line.Substring(1)
         if ($code) { $code }
     }
@@ -313,4 +337,4 @@ function Invoke-Rubric {
 }
 
 Export-ModuleMember -Function New-Check, Write-Checks, Read-AnswerJson, Get-AgentFiles, Copy-Workspace,
-    Invoke-Capture, Get-RuntimeId, Invoke-JitAndNative, Get-LastLines, Get-WorkspaceDiff, Invoke-Rubric
+    Invoke-Capture, Get-RuntimeId, Invoke-JitAndNative, Get-LastLines, ConvertFrom-ProbeOutput, Get-ProbeScript, Get-WorkspaceDiff, Invoke-Rubric
