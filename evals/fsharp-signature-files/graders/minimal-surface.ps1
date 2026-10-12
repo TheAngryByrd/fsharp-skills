@@ -64,7 +64,9 @@ if ($built -and (Test-Path $dll)) {
     $actual = @(ConvertTo-NormalizedSurface $surface)
     $expected = @(Get-Content (Join-Path $PSScriptRoot 'minimal-surface-expected.txt') | Where-Object { $_ })
     $extra = @($actual | Where-Object { $expected -cnotcontains $_ })
-    $missing = @($expected | Where-Object { $actual -cnotcontains $_ })
+    $optional = @(Get-Content (Join-Path $PSScriptRoot 'minimal-surface-optional.txt') | Where-Object { $_ })
+    $extra = @($extra | Where-Object { $optional -cnotcontains $_ })
+    $missing = @($expected | Where-Object { $actual -cnotcontains $_ -and $optional -cnotcontains $_ })
     $evidence = @($extra | ForEach-Object { "extra: $_" }) + @($missing | ForEach-Object { "missing: $_" })
     $checks += New-Check 'The public surface equals the minimal API that Shop and the tests need' ($LASTEXITCODE -eq 0 -and $evidence.Count -eq 0) ($evidence -join "`n")
 
@@ -108,9 +110,8 @@ function Invoke-Probe([string]$Name, [string]$Source) {
 $control = Invoke-Probe 'control' @'
 open Inventory
 
-match Sku.tryParse "abc-1234", Quantity.tryCreate 2 with
-| Some sku, Some units ->
-    let item: StockItem = { Sku = sku; OnHand = units }
+match Stock.parseLine "abc-1234,2", Sku.tryParse "abc-1234", Quantity.tryCreate 2 with
+| Ok item, Some sku, Some units ->
     use ledger = new StockLedger()
     ledger.Receive(item.Sku, item.OnHand)
     let level = Stock.classify (ledger.OnHand sku)

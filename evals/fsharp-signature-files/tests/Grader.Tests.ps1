@@ -101,6 +101,12 @@ try {
             Edit-File (Join-Path $lib 'Inventory.fsproj') '<InternalsVisibleTo Include="Inventory.Tests" />' ''
             Edit-File (Join-Path $lib 'Inventory.fsproj') '<Compile Include="Pricing.fs" />' '<Compile Include="Pricing.fs" /><Compile Include="AssemblyInfo.fs" />'
         }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
+    Assert-Checks 'StockItem constructor hidden' (Invoke-Case 'stockitem' -Good -Edit {
+            param($ws)
+            Edit-File (Join-Path $ws 'Inventory/Stock.fsi') 'type StockItem = \{ Sku: Sku; OnHand: Quantity \}' "[<Sealed>]`ntype StockItem =`n    member Sku: Sku`n    member OnHand: Quantity"
+            Edit-File (Join-Path $ws 'Inventory/Stock.fs') 'type StockItem = \{ Sku: Sku; OnHand: Quantity \}' "[<Sealed>]`ntype StockItem internal (sku: Sku, onHand: Quantity) =`n    member _.Sku = sku`n    member _.OnHand = onHand"
+            Edit-File (Join-Path $ws 'Inventory/Stock.fs') 'Ok \{ Sku = sku; OnHand = onHand \}' 'Ok(StockItem(sku, onHand))'
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
     Assert-Checks 'Shop replaced with fixed output' (Invoke-Case 'shop-edit' -Edit {
             param($ws)
             $lines = Get-Content (Join-Path $PSScriptRoot '../graders/shop-expected.txt') | Where-Object { $_ } | ForEach-Object { "    printfn `"%s`" `"$($_.Replace('"', '\"'))`"" }

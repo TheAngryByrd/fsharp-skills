@@ -5,7 +5,6 @@ Inventory.SkuModule | static tryParse(System.String) : Microsoft.FSharp.Core.FSh
 Inventory.SkuModule | static value(Inventory.Sku) : System.String
 Inventory.Stock | static classify(Inventory.Quantity) : Inventory.StockLevel
 Inventory.Stock | static parseLine(System.String) : Microsoft.FSharp.Core.FSharpResult<Inventory.StockItem, System.String>
-Inventory.StockItem | new(Inventory.Sku, Inventory.Quantity)
 Inventory.StockItem | OnHand : Inventory.Quantity with get
 Inventory.StockItem | Sku : Inventory.Sku with get
 Inventory.StockLedger | implements System.IDisposable

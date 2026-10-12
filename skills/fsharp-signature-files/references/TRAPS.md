@@ -12,6 +12,7 @@ the codes with SDK 10.0.401.
 | `GenericMismatch` | `.fsi` says `int -> int`, the `.fs` infers `'a -> 'a` | FS0034 "The respective type parameter counts differ" | fails |
 | `InlineMismatch` | `.fsi` says `val inline`, the `.fs` is not `inline` | FS0034 "The inline flags differ" | fails |
 | `SealedMismatch` | `[<Sealed>]` on the class in the `.fsi` only | FS0297 "the implementation type is not sealed" | fails |
+| `HiddenClassNoAttribute` | a class in the `.fsi` with members, no constructor, and no attribute | FS0938 "The representation of this type is hidden by the signature", and FS0297 because the compiler then treats the type as sealed | fails |
 | `MissingValue` | `.fsi` lists a `val` that the `.fs` does not define | FS0193 "requires a value" | fails |
 | `SignatureAfterImplementation` | `.fsi` after `.fs` in `Compile` | FS0238, FS0248 | fails |
 | `HiddenRecordConstruction` | a caller builds a record whose type is abstract in the `.fsi` | FS0039 "The record label ... is not defined" | fails, as intended |
@@ -22,6 +23,7 @@ the codes with SDK 10.0.401.
 ## Fixes
 
 - FS3888: copy the attribute from the `.fs` to the `.fsi`. Do not remove it from the `.fs`.
+- FS0938: add `[<Sealed>]` to the type in both files, or `[<Class>]` to the `.fsi`.
 - FS0297: remove `[<Sealed>]` from the `.fsi`, or add it to the `.fs` class too.
 - FS0050: add `interface <Name>` to the type in the `.fsi`.
 - FS0034 with generic arity: add a type annotation in the `.fs`, or make the `val` generic.
