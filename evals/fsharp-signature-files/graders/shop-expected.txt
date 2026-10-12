@@ -1,0 +1,6 @@
+ABC-1234 12 healthy
+XYZ-0001 3 low
+QRS-9999 0 out of stock
+skipped: Bad SKU in 'bad,1'.
+skipped: Negative count in 'ABC-1234,-2'.
+ABC-1234 on hand 16, value 34.00

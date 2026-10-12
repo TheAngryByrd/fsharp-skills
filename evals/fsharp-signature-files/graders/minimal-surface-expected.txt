@@ -1,0 +1,34 @@
+Inventory.Pricing | static lineTotal(System.Decimal, Inventory.Quantity) : System.Decimal
+Inventory.QuantityModule | static tryCreate(System.Int32) : Microsoft.FSharp.Core.FSharpOption<Inventory.Quantity>
+Inventory.QuantityModule | static value(Inventory.Quantity) : System.Int32
+Inventory.SkuModule | static tryParse(System.String) : Microsoft.FSharp.Core.FSharpOption<Inventory.Sku>
+Inventory.SkuModule | static value(Inventory.Sku) : System.String
+Inventory.Stock | static classify(Inventory.Quantity) : Inventory.StockLevel
+Inventory.Stock | static parseLine(System.String) : Microsoft.FSharp.Core.FSharpResult<Inventory.StockItem, System.String>
+Inventory.StockItem | new(Inventory.Sku, Inventory.Quantity)
+Inventory.StockItem | OnHand : Inventory.Quantity with get
+Inventory.StockItem | Sku : Inventory.Sku with get
+Inventory.StockLedger | implements System.IDisposable
+Inventory.StockLedger | new()
+Inventory.StockLedger | OnHand(Inventory.Sku) : Inventory.Quantity
+Inventory.StockLedger | Receive(Inventory.Sku, Inventory.Quantity) : System.Void
+Inventory.StockLevel | IsHealthy : System.Boolean with get
+Inventory.StockLevel | IsLow : System.Boolean with get
+Inventory.StockLevel | IsOutOfStock : System.Boolean with get
+Inventory.StockLevel | static Healthy : Inventory.StockLevel with get
+Inventory.StockLevel | static Low : Inventory.StockLevel with get
+Inventory.StockLevel | static OutOfStock : Inventory.StockLevel with get
+Inventory.StockLevel | Tag : System.Int32 with get
+Inventory.StockLevel+Tags | const Healthy : System.Int32 = 2
+Inventory.StockLevel+Tags | const Low : System.Int32 = 1
+Inventory.StockLevel+Tags | const OutOfStock : System.Int32 = 0
+type Inventory.Pricing
+type Inventory.Quantity
+type Inventory.QuantityModule
+type Inventory.Sku
+type Inventory.SkuModule
+type Inventory.Stock
+type Inventory.StockItem
+type Inventory.StockLedger
+type Inventory.StockLevel
+type Inventory.StockLevel+Tags

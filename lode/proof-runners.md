@@ -27,6 +27,19 @@ let envOr (name: string) (fallback: string) : string =
     if isNull v then fallback else v
 ```
 
+## Signature files
+
+The `fsharp-signature-files` runner is project-based and requires PowerShell 7.4. It reuses the nullness isolation files with `FSHARP_SIGNATURE_PROOF_ROOT`.
+It builds `scripts/Sample` and checks lines of `scripts/public-surface.ps1` output: the abstract type and its constructor function are public, and the helper left out of the `.fsi`, the `val internal` helper, and the record field are not. It checks that the XML file has the `.fsi` doc comment and no entry for a doc comment that is only in the `.fs`. `scripts/Sample.Tests` calls a `val internal` value through `InternalsVisibleTo`.
+It builds `scripts/Generate` with `-p:OtherFlags=--allsigs` and checks that `Orders.fsi` keeps the public helper, the `val private` value, and the doc comment, and that `.fsi` files appear under `obj/`.
+Each `scripts/breaks/<Name>/` folder has its own `Break.fsproj`. The runner checks that the reported FS codes (warnings and errors) equal the `// expect:` codes. A folder with `// expect-exit: 0` must build, because FS3888 is only a warning.
+
+`public-surface.ps1` runs `PublicSurface.fsx` with `dotnet fsi` from `scripts/`, so `scripts/global.json` selects the SDK. It loads the assembly in a collectible `AssemblyLoadContext` and prints one sorted line per exported type, base type, interface, and declared public member. Type names include the namespace. It lists operators such as `op_Addition`, and leaves out property and event accessor methods, because the property or event line shows them. It resolves dependencies from the assembly folder, the NuGet packages in `<Lib>.deps.json`, and the shared frameworks such as `Microsoft.AspNetCore.App`. The compiled parameter names come from the `.fs`, not the `.fsi`.
+
+```text
+Sample.EmailModule | static create(input: System.String) : Microsoft.FSharp.Core.FSharpResult<Sample.Email, System.String>
+```
+
 ## Native AOT
 
 The Native AOT proof runner is project-based because `dotnet fsi` cannot publish a native exe.

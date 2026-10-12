@@ -42,7 +42,7 @@ Bundle relevant proof scripts under each skill's `scripts/` directory. Use relat
 Local machine paths do not provide portable evidence. Public files must exclude private content.
 For compile-time break tests, check the expected diagnostic as well as compilation failure. An unrelated compiler failure is not proof.
 Proof runners reject unexpected compiler errors. The FSI runners with compile-time break tests (`fsharp-iwsam-errors` and `fsharp-env-capabilities`) also preserve the complete inferred signatures for inspection. [proof-runners.md](proof-runners.md) gives what each other runner checks.
-The runners require PowerShell 7.2 or later so redirected native stderr does not terminate expected compiler-failure checks.
+The runners require PowerShell 7.2 or later so redirected native stderr does not terminate expected compiler-failure checks. The `fsharp-signature-files` scripts require PowerShell 7.4 or later, the same version as the eval runner.
 Successful example execution does not assert the printed runtime outcomes. Compare those outcomes with each skill's findings document. The runners that do assert outcomes are listed in [proof-runners.md](proof-runners.md).
 
 Example format check, when `skills-ref` is installed:
