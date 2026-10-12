@@ -59,7 +59,7 @@ Probe consumers reference the agent's project. A control probe must build and ru
 The grader reads FS3888 and FS0050 from the build output, because the build passes with these warnings.
 The surface check cannot tell a member left out of the `.fsi` from a member marked `private` in the `.fs`.
 `evals/fsharp-signature-files/tests/Grader.Tests.ps1` grades a known good result, the original input, raw `--allsigs` output, a public test-only helper, a `.fsi` after its `.fs`, docs only in the `.fs`, a missing `RequireQualifiedAccess`, a public `Sku` representation, an unlisted interface, a `private` representation with an extra `AssemblyInfo.fs` (must pass), a sealed `StockItem` class with an `internal` constructor (must pass), and a Shop that prints fixed text over a broken library.
-The `minimal-surface` prompt names each graded requirement, and Claude Sonnet passed it without the skill (12/12 checks, 5 turns). The `add-signatures` prompt asks only for signature files that encapsulate the library, so it is the task that measures the skill.
+The `minimal-surface` prompt names each graded requirement, and Claude Sonnet passed it without the skill (12/12 checks, 5 turns). The `add-signatures` prompt asks only for signature files that encapsulate the library, so it is the task that measures the skill. With 2 runs per mode, Claude Sonnet and Codex without the skill left the test-only `roundToCents` helper public (0/2 surface checks), and Codex also dropped the doc comments (0/2). With the skill, both passed 12/12 in each run, at the cost of more turns (7 against 4, and 14 against 10.5). opencode left `roundToCents` public in both modes. The full table is on issue #10.
 
 ```mermaid
 flowchart LR
