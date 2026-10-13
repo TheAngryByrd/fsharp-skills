@@ -1,0 +1,30 @@
+{
+  "skill": "fsharp-signature-files",
+  "contaminationKeywords": [
+    "signature file",
+    ".fsi",
+    "fsi file"
+  ],
+  "tasks": [
+    {
+      "id": "minimal-surface",
+      "files": [
+        "inputs/Inventory",
+        "inputs/Shop",
+        "inputs/Inventory.Tests"
+      ],
+      "grader": "graders/minimal-surface.ps1",
+      "prompt": "Inventory/ is an F# library. Shop/ is the only application that uses it, and Inventory.Tests/ holds its tests (run it with dotnet run; it exits 0 when every test passes).\n\nAdd F# signature files (.fsi) to Inventory so that its public API is only what Shop uses. Tests may need more than Shop, but a member that only the tests use must not be public. Callers must not be able to make a Sku or a Quantity without the parse and create functions. Keep the doc comments that callers see in their editor today.\n\nShop must build and print the same output as before. Do not change Shop/ or Inventory.Tests/. Inventory.Tests must build and pass."
+    },
+    {
+      "id": "add-signatures",
+      "files": [
+        "inputs/Inventory",
+        "inputs/Shop",
+        "inputs/Inventory.Tests"
+      ],
+      "grader": "graders/minimal-surface.ps1",
+      "prompt": "Inventory/ is an F# library. Shop/ is an application that uses it, and Inventory.Tests/ holds its tests (run it with dotnet run; it exits 0 when every test passes).\n\nAdd F# signature files (.fsi) to the Inventory library to encapsulate it. Do not change Shop/ or Inventory.Tests/. Shop and Inventory.Tests must still build, Shop must print the same output, and the tests must pass."
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # F# skills
 
 Reusable instructions for AI agents working on F# code, packaged in the [Agent Skills format](https://agentskills.io/home).
-The skills cover domain design, dependency management, error composition, failure paths, idiomatic shape, async composition, API verification, compiler performance, Native AOT, and .NET nullness interop.
+The skills cover domain design, dependency management, error composition, failure paths, idiomatic shape, async composition, API verification, compiler performance, Native AOT, .NET nullness interop, and signature files.
 
 ## Skills
 
@@ -17,6 +17,7 @@ The skills cover domain design, dependency management, error composition, failur
 | [fsharp-idiom-review](skills/fsharp-idiom-review/SKILL.md) | Gives a checklist with before/after examples that the agent applies to its own F# diff: records instead of tuples, options instead of out parameters, `match` instead of `if`/`elif` chains or `let mutable`, no list indexing, single-pass collection code, `match!`, `static member val`, and syntax APIs instead of string concatenation. It links to `parse-dont-validate` for modeling. | Agents write C#-shaped F#, most of all when they port C#. The compiler accepts it. Review evidence ranks idiomatic shape and collection efficiency among the strongest categories of human comments on agent F# code. Codex and opencode sessions hold 5 user corrections on this subject. |
 | [fsharp-verify-api](skills/fsharp-verify-api/SKILL.md) | Lists the real signatures of a package version before F# code uses them, and checks opens, references, existing helpers, and `.fsx` `#r` lines. | Agents write the API that they remember. FS0039 is the top compiler error in agent sessions, and each wrong guess costs a failed build. |
 | [fsharp-nullness-interop](skills/fsharp-nullness-interop/SKILL.md) | Turns on F# nullness checks, converts `T \| null` results from .NET APIs to F# types at the boundary, and fixes FS0041 errors from new BCL overloads such as `TimeSpan.FromSeconds(int64)`. | Codex and opencode sessions show 435 FS3261 warnings in 37 sessions (61% from 3 sessions) and FS0041 errors in 91 sessions. Claude sessions show 20 FS3261 hits and `TimeSpan.FromSeconds` overload errors. Some fixes compile but hide a real null, for example `Some (call ())`, `string x`, or `Unchecked.nonNull`. |
+| [fsharp-signature-files](skills/fsharp-signature-files/SKILL.md) | Adds `.fsi` files that expose only the API that other projects use, hides type representations behind constructor functions, fixes signature mismatches, and compares the public surface of the built assembly before and after. | Without guidance, an agent can keep the compiler's `--sig` output, which repeats every public member and hides nothing. A missing `RequireQualifiedAccess` in a `.fsi` is only a warning, and a doc comment that is only in the `.fs` leaves the XML file. The skill comes from a maintainer request, not from failure data. |
 
 The patterns can work together: the environment supplies capabilities, and IWSAM interfaces describe possible errors.
 
@@ -97,6 +98,10 @@ Use fsharp-nullness-interop to turn on nullness checks with TreatWarningsAsError
 ```
 
 ```text
+Use fsharp-signature-files to add .fsi files to this library that expose only what the app uses, and compare the public surface before and after.
+```
+
+```text
 Use optimize-fsharp-typecheck-graph to measure this project's type-checking bottleneck and evaluate a compatible improvement.
 ```
 
@@ -127,6 +132,9 @@ The runner runs `scripts/Proofs.fsx` and fails when a cancellation, exception, s
 
 The nullness skill includes a project-based runner, `scripts/run.ps1`. It requires the .NET 10 SDK, NuGet access, and PowerShell 7.2 or later.
 The runner builds and runs a project with nullness checks and warnings as errors, and compares its null-handling results with expected values. It then builds each compile-time break test and checks for its expected diagnostic codes and message text.
+
+The signature file skill includes a project-based runner, `scripts/run.ps1`, and `scripts/public-surface.ps1`, which prints the public API of a built assembly. Both require the .NET 10 SDK and PowerShell 7.4 or later.
+The runner checks the public surface, the XML documentation, and an `InternalsVisibleTo` test project of a sample library. It checks the `.fsi` output of `--allsigs`. It then builds each compile-time break test and checks for its expected diagnostic codes.
 
 The parsing and compiler-performance skills provide guidance. Apply their verification steps to the target project.
 

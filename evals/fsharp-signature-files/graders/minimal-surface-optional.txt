@@ -1,0 +1,1 @@
+Inventory.StockItem | new(Inventory.Sku, Inventory.Quantity)

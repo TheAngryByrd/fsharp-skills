@@ -1,0 +1,14 @@
+T:Inventory.Sku
+T:Inventory.Quantity
+M:Inventory.SkuModule.tryParse(System.String)
+M:Inventory.SkuModule.value(Inventory.Sku)
+M:Inventory.QuantityModule.tryCreate(System.Int32)
+M:Inventory.QuantityModule.value(Inventory.Quantity)
+T:Inventory.StockLevel
+T:Inventory.StockItem
+M:Inventory.Stock.classify(Inventory.Quantity)
+M:Inventory.Stock.parseLine(System.String)
+T:Inventory.StockLedger
+M:Inventory.StockLedger.Receive(Inventory.Sku,Inventory.Quantity)
+M:Inventory.StockLedger.OnHand(Inventory.Sku)
+M:Inventory.Pricing.lineTotal(System.Decimal,Inventory.Quantity)

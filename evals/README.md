@@ -248,6 +248,14 @@ pwsh ./evals/tests/Rubric.Tests.ps1
 | `fsharp-idiom-review` | `port-order-report` | A port of a short C# class to an F# script. The class has a value tuple, an `out` parameter, an `if`/`else if` chain on strings, `foreach` accumulators, and an index loop. A grader probe checks the `render` text for seven orders under a culture with a comma decimal separator, including midpoint rounding, a zero discount for a known code, and both tier boundaries. Five rubric checks review the totals record, the option return, `match` on the code, no mutable accumulators, and no list index. |
 | `fsharp-verify-api` | `cli-options` | Command-line parsing with `System.CommandLine` 2.0.0, whose API differs from the beta API that most models remember. The project must keep version 2.0.0 and build. The grader runs the app with valid options, a missing `--name`, `--count 0`, `--help`, and an unknown option. Models often know this API, so the task shows a small effect. |
 | `fsharp-verify-api` | `order-props` | FsCheck 3.4.0 generators and a property check in an `.fsx` script. FsCheck 3 moved the F# API to `FsCheck.FSharp` and changed `Gen.sample` and `Config`. A grader probe samples the generators, checks the constraints, counts the property tests, and checks that a wrong total throws. The `#r` line must keep version 3.4.0. |
+| `fsharp-signature-files` | `minimal-surface` | Signature files for a three-file library. The prompt names each requirement. `Sku.fs`, `Stock.fs`, and `Pricing.fs` must each have their `.fsi` directly before them, with no FS3888 or FS0050 warning. The grader restores the original Shop and tests: Shop must print the same report, and the tests must pass. The normalized public surface must equal an expected list, so a test-only helper must be `internal` with `InternalsVisibleTo`. The XML file must keep each public doc comment. Probe consumers must fail to build a `Sku` record, a `Quantity` case, or an unqualified `StockLevel` case, and to call the test-only helper. |
+| `fsharp-signature-files` | `add-signatures` | The same input and grader. The prompt asks only for signature files that encapsulate the library, so the hidden representations, the `internal` test-only helper, and the doc comments must come from the skill. |
+
+Test the `fsharp-signature-files` grader against known good results and bad results:
+
+```powershell
+pwsh ./evals/fsharp-signature-files/tests/Grader.Tests.ps1
+```
 
 Test both `fsharp-verify-api` graders against a known good result, the stub, old API code, and a package downgrade:
 

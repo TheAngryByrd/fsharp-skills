@@ -59,6 +59,8 @@ No source showed Fantomas, SRTP/IWSAM, `.fsproj` compile-order, or logging-forma
 | `fsharp-nullness-interop` | 6, 9 | Reported: warnings and inference errors on new BCL APIs. |
 | `fsharp-idiom-review` | 7 | Silent: reviewers ask for a different shape. |
 
+`fsharp-signature-files` has no area in this table. It comes from a maintainer request, not from failure data. The sources show almost no signature-file failures, and their FS0034 hits came from the excluded `build-times` repository. Its eval must show its value.
+
 Areas 4, 5, 8, 10, and 11 have no F# skill.
 Area 4 is not F#-specific. Area 5 is covered by `dotnet-test-audit`.
 Area 8 has only one source. Area 10 is fixed in one turn.
