@@ -146,6 +146,16 @@ try {
     Assert-Checks 'summarize is wrong on every sixth call' (Invoke-Case 'wrong-6th' 'good' {
             param($ws) & $everyNth $ws 6
         }) @($T, $T, $T, $T, $T, $F, $F, $T, $T)
+    Assert-Checks 'a last-input cache around the original code' (Invoke-Case 'cache' -Edit {
+            param($ws)
+            $path = Join-Path $ws 'Telemetry/Report.fs'
+            Edit-File $path 'let summarize \(offsets' 'let summarizeSlow (offsets'
+            Edit-File $path '(\r?\n)(\s+)/// Renders' "`${1}`${2}let mutable cache: (Reading list * SensorStats list) option = None`${1}`${1}`${2}let summarize (offsets: Map<string, float>) (threshold: float) (readings: Reading list) : SensorStats list =`${1}`${2}    match cache with`${1}`${2}    | Some(input, result) when obj.ReferenceEquals(input, readings) -> result`${1}`${2}    | _ ->`${1}`${2}        let result = summarizeSlow offsets threshold readings`${1}`${2}        cache <- Some(readings, result)`${1}`${2}        result`${1}`${1}`${2}/// Renders"
+        }) @($T, $T, $T, $T, $T, $F, $F, $F, $F)
+    Assert-Checks 'summarize keeps the sign of a negative zero mean' (Invoke-Case 'negative-zero' 'good' {
+            param($ws) Edit-File (Join-Path $ws 'Telemetry/Report.fs') 'member val Sum = 0\.0 \+ first' 'member val Sum = first'
+        }) @($T, $T, $T, $F, $T, $N, $N, $T, $T)
+    Assert-Checks 'an output folder with an ampersand in its path' (Invoke-Case 'amp&dir' 'good') @($T, $T, $T, $T, $T, $T, $T, $T, $T)
     Assert-Checks 'summarize takes an array' (Invoke-Case 'signature' 'good' {
             param($ws) Edit-File (Join-Path $ws 'Telemetry/Report.fs') '\(readings: Reading list\)' '(readings: Reading array)'
         }) @($T, $F, $F, $N, $N, $N, $N, $N, $N)

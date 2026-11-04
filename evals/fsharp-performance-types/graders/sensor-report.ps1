@@ -98,7 +98,7 @@ Set-Content (Join-Path $bench 'Bench.fsproj') @"
     <Compile Include="Original.fs" />
     <Compile Include="Reference.fs" />
     <Compile Include="Bench.fs" />
-    <ProjectReference Include="$((Resolve-Path $project).Path)" />
+    <ProjectReference Include="$([System.Security.SecurityElement]::Escape((Resolve-Path $project).Path))" />
   </ItemGroup>
 </Project>
 "@

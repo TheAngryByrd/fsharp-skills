@@ -62,7 +62,9 @@ let report ok (name: string) (detail: string) =
 
 let sameStat (x: SensorStats) (y: SensorStats) =
     let close (a: float) (b: float) tolerance =
-        if Double.IsFinite a && Double.IsFinite b then
+        if a = 0.0 && b = 0.0 then
+            Double.IsNegative a = Double.IsNegative b
+        elif Double.IsFinite a && Double.IsFinite b then
             abs (a - b) <= tolerance * max 1.0 (abs b)
         else
             a = b || (Double.IsNaN a && Double.IsNaN b)
@@ -154,7 +156,8 @@ let correctness (bigOffsets: Map<string, float>) (big: Reading list) =
     let cases =
         [ "empty", Map.empty, []
           "all invalid", Map.empty, [ { Site = "n"; Sensor = "a"; Timestamp = 0L; Value = 1.0 }; { Site = "n"; Sensor = "b"; Timestamp = 2L; Value = nan } ]
-          "one reading", Map.ofList [ "solo", 1.5 ], [ { Site = "n"; Sensor = "solo"; Timestamp = 1L; Value = -2.5 } ] ]
+          "one reading", Map.ofList [ "solo", 1.5 ], [ { Site = "n"; Sensor = "solo"; Timestamp = 1L; Value = -2.5 } ]
+          "negative zero", Map.empty, [ { Site = "n"; Sensor = "z"; Timestamp = 1L; Value = -0.0 } ] ]
         @ [ for seed in 1..6 -> $"seed {seed}", offsetsFor (2 + seed * 3), generate seed (1 + seed % 10) (2 + seed * 3) (seed * 400) (seed % 2 = 0) ]
         @ [ "production size", bigOffsets, big ]
 
@@ -196,37 +199,52 @@ let median (samples: ResizeArray<int64>) =
     Array.sortInPlace a
     a[a.Length / 2]
 
-let measure (name: string) (agent: unit -> 'a) (reference: unit -> 'a) (validate: 'a -> string option) =
+let measure
+    (name: string)
+    (prepare: int -> 'input * 'expected)
+    (agent: 'input -> 'a)
+    (reference: 'input -> 'a)
+    (validate: 'expected -> 'a -> string option)
+    =
     let allocationCheck = $"{name} allocates no more than 2 x the reference + 64 KB"
     let timeCheck = $"{name} median run time is no more than 3 x the reference + 1 ms"
+    let mutable call = 0
 
-    let check (call: string) (result: 'a) =
-        match validate result with
-        | Some d -> failwith $"the {call} call gave a different result: {d}"
+    let next () =
+        call <- call + 1
+        prepare call
+
+    let check (label: string) (expected: 'expected) (result: 'a) =
+        match validate expected result with
+        | Some d -> failwith $"the {label} call gave a different result: {d}"
         | None -> ()
 
     let outcome =
         try
             for i in 1..3 do
-                check $"warm-up {i}" (agent ())
-                reference () |> ignore
+                let input, expected = next ()
+                check $"warm-up {i}" expected (agent input)
+                reference input |> ignore
 
-            let agentBytes, measured = allocatedBy agent
-            check "allocation" measured
-            let referenceBytes, _ = allocatedBy reference
+            let input, expected = next ()
+            let agentBytes, measured = allocatedBy (fun () -> agent input)
+            check "allocation" expected measured
+            let referenceBytes, _ = allocatedBy (fun () -> reference input)
             let agentTimes = ResizeArray()
             let referenceTimes = ResizeArray()
             let deadline = Stopwatch.StartNew()
             let mutable rounds = 0
 
-            let timeAgent () =
-                let ticks, result = timed agent
-                check $"timed {rounds + 1}" result
-                agentTimes.Add ticks
-
-            let timeReference () = referenceTimes.Add(fst (timed reference))
-
             while rounds < 15 && deadline.Elapsed < TimeSpan.FromSeconds 60.0 do
+                let input, expected = next ()
+
+                let timeAgent () =
+                    let ticks, result = timed (fun () -> agent input)
+                    check $"timed {rounds + 1}" expected result
+                    agentTimes.Add ticks
+
+                let timeReference () = referenceTimes.Add(fst (timed (fun () -> reference input)))
+
                 if rounds % 2 = 0 then
                     timeAgent ()
                     timeReference ()
@@ -259,27 +277,27 @@ let main argv =
     let offsets = offsetsFor 100
     let summarizeOk, renderOk = correctness offsets big
 
-    let stats =
-        Golden.Report.summarize offsets threshold (List.map toGoldenReading big)
-        |> List.map ofGoldenStats
-
     if summarizeOk then
         measure
             "summarize of 200,000 readings"
-            (fun () -> summarize offsets threshold big)
-            (fun () -> Fast.Report.summarize offsets threshold big)
-            (fun actual -> firstDifference actual stats)
+            (fun call ->
+                let batch = generate (1000 + call) 10 100 200_000 false
+                batch, Fast.Report.summarize offsets threshold batch)
+            (summarize offsets threshold)
+            (Fast.Report.summarize offsets threshold)
+            (fun expected actual -> firstDifference actual expected)
     else
         printfn "SKIP summarize of 200,000 readings: the output differs from the original code"
 
     if renderOk then
-        let expectedText = Golden.Report.render (List.map toGoldenStats stats)
-
         measure
             "render of 1,000 sensors"
-            (fun () -> render stats)
-            (fun () -> Fast.Report.render stats)
-            (fun text -> if text = expectedText then None else Some "render text differs")
+            (fun call ->
+                let stats = Fast.Report.summarize offsets threshold (generate (2000 + call) 10 100 50_000 false)
+                stats, Golden.Report.render (List.map toGoldenStats stats))
+            render
+            Fast.Report.render
+            (fun expected text -> if text = expected then None else Some "render text differs")
     else
         printfn "SKIP render of 1,000 sensors: the output differs from the original code"
 

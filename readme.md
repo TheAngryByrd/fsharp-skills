@@ -163,7 +163,7 @@ pwsh ./evals/run-evals.ps1 -Skill fsharp-native-aot -Target claude:sonnet,codex
 The runner starts agents without permission prompts. Read the caution in the eval README before you run it.
 Eval tasks exist for each skill. See the [eval README](evals/README.md) for the task list.
 
-The `fsharp-performance-types` eval ran with `claude:sonnet` (`claude-sonnet-5-5`), `codex` (gpt-6.1-sol, effort high; default from config, not recorded in run.json), and the free opencode models `opencode/flint-40b-free`, `opencode/nemotron-3.5-lightning-free`, and `opencode/deepseek-v4.1-flash-free`. Codex without the skill failed the `render` allocation limit in 2 of 2 runs and passed with the skill. Claude Sonnet passed in both modes. The free models reached their usage limits, so the opencode comparison is partial. [lode/eval-design.md](lode/eval-design.md) and issue #13 have the results.
+The `fsharp-performance-types` eval ran with `claude:sonnet` (`claude-sonnet-5-5`), `codex` (gpt-6.1-sol, effort high; default from config, not recorded in run.json), and the free opencode models `opencode/flint-40b-free`, `opencode/nemotron-3.5-lightning-free`, and `opencode/deepseek-v4.1-flash-free`. Codex without the skill failed the `render` allocation limit in 2 of 2 runs and passed with the skill. Claude Sonnet passed every check without the skill and failed one output check in one run with the skill. The free models reached their usage limits, so the opencode comparison is partial. [lode/eval-design.md](lode/eval-design.md) and issue #13 have the results.
 
 ## Related skills
 

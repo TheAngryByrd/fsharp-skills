@@ -23,7 +23,7 @@ type SensorStats =
 [<Sealed>]
 type internal Acc(first: float) =
     member val Count = 1 with get, set
-    member val Sum = first with get, set
+    member val Sum = 0.0 + first with get, set
     member val Max = first with get, set
     member val Last = first with get, set
     member val Spikes = 0 with get, set
