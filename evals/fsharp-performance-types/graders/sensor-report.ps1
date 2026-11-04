@@ -148,7 +148,7 @@ foreach ($name in $benchChecks) {
     } elseif ($found.Count -eq 1) {
         $checks += $found[0]
     } elseif ($gate.Count -eq 1 -and $gate[0].passed -eq $false) {
-        $checks += New-Check $name $null "skipped: the $function output differs from the original code"
+        $checks += New-Check $name $false "not measured: the $function output differs from the original code"
     } else {
         $checks += New-Check $name $false "the bench did not report this check`n$(Get-LastLines $run.Text 6)"
     }

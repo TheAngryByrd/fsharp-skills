@@ -131,21 +131,56 @@ let arraySortCopy = List.toArray names
 Array.Sort arraySortCopy
 let resizeSorted = ResizeArray names
 resizeSorted.Sort()
+let linqSorted = List.ofSeq (Linq.Enumerable.OrderBy(names, fun x -> x))
+let sortedBy = List.sortBy id names
+let sortedInPlaceBy = List.toArray names
+Array.sortInPlaceBy id sortedInPlaceBy
 let sortedDict = SortedDictionary<string, int>()
 
 for k in names do
     sortedDict[k] <- 1
 
 check
-    "List.sort, Array.sort, Map, and Set order strings by ordinal; Array.Sort, List<T>.Sort, and SortedDictionary use the current culture"
+    "List.sort, List.sortBy, Array.sort, Array.sortInPlaceBy, Map, and Set order strings by ordinal; Array.Sort, List<T>.Sort, SortedDictionary, and LINQ OrderBy use the current culture"
     (fsharpSorted = List.sortWith (fun a b -> String.CompareOrdinal(a, b)) names
      && Array.sort (List.toArray names) = List.toArray fsharpSorted
+     && sortedBy = fsharpSorted
+     && List.ofArray sortedInPlaceBy = fsharpSorted
+     && linqSorted <> fsharpSorted
      && List.ofSeq (Set.ofList names) = fsharpSorted
      && List.ofSeq (Map.keys (Map.ofList [ for k in names -> k, 1 ])) = fsharpSorted
      && List.ofArray arraySortCopy <> fsharpSorted
      && List.ofSeq resizeSorted <> fsharpSorted
      && List.ofSeq sortedDict.Keys <> fsharpSorted)
     $"F# {fsharpSorted}, Array.Sort {List.ofArray arraySortCopy}"
+
+let composed = "\u00C5"
+let decomposed = "A\u030A"
+let stringKeyed = Dictionary<string, int>()
+stringKeyed[composed] <- 1
+stringKeyed[decomposed] <- 2
+stringKeyed["a"] <- 3
+stringKeyed["A"] <- 4
+
+check
+    "Dictionary<string, _> without a comparer uses ordinal equality, the same as F# ="
+    (stringKeyed.Count = 4 && composed <> decomposed && String.Equals(composed, decomposed, StringComparison.InvariantCulture))
+    $"{stringKeyed.Count} keys"
+
+let sumStart = List.sum [ -0.0 ]
+let averageStart = List.average [ -0.0 ]
+let firstStart = -0.0
+let zeroStart = 0.0 + firstStart
+
+check
+    "List.sum and List.average of one -0.0 give +0.0; a sum that starts at the first value keeps -0.0, and F3 prints -0.000"
+    (not (Double.IsNegative sumStart)
+     && not (Double.IsNegative averageStart)
+     && Double.IsNegative firstStart
+     && not (Double.IsNegative zeroStart)
+     && firstStart.ToString("F3", CultureInfo.InvariantCulture) = "-0.000"
+     && averageStart.ToString("F3", CultureInfo.InvariantCulture) = "0.000")
+    $"average {averageStart}, first {firstStart}, 0.0 + first {zeroStart}"
 
 let values = Array.init n float
 
@@ -414,6 +449,45 @@ let structEqualBytes =
         s)
 
 check "F# = on a struct record allocates nothing" (structEqualBytes = 0L) $"{structEqualBytes} bytes"
+
+let structCompareBytes =
+    allocated (fun () ->
+        let mutable s = 0
+
+        for i in 0 .. n - 1 do
+            s <- s + compare { X = i; Y = 0 } { X = 0; Y = 1 }
+
+        s)
+
+check "F# compare on a struct record allocates nothing" (structCompareBytes = 0L) $"{structCompareBytes} bytes"
+
+let pointKeyed = Dictionary<Point, int>()
+
+for i in 0..99 do
+    pointKeyed[{ X = i; Y = i }] <- i
+
+let pointKeyBytes =
+    allocated (fun () ->
+        let mutable s = 0
+
+        for i in 0 .. n - 1 do
+            s <- s + pointKeyed[{ X = i % 100; Y = i % 100 }]
+
+        s)
+
+check "A Dictionary with a [<Struct>] record key allocates nothing on lookup" (pointKeyBytes = 0L) $"{pointKeyBytes} bytes"
+
+let buildAndMatchBytes =
+    allocated (fun () ->
+        let mutable s = 0
+
+        for i in 0 .. n - 1 do
+            let lo, hi = (i, i + 1)
+            s <- s + lo + hi
+
+        s)
+
+check "A tuple built and matched in the same expression allocates nothing" (buildAndMatchBytes = 0L) $"{buildAndMatchBytes} bytes"
 
 let saved = CultureInfo.CurrentCulture
 CultureInfo.CurrentCulture <- CultureInfo "de-DE"

@@ -1,6 +1,6 @@
 # Collection choice
 
-Use this table to pick a collection for hot code. `scripts/Perf.fsx` measures the `seq`, `@`, `List.item`, `List.toArray`, `Map`, `Dictionary`, and string order claims. The `Seq.cache`, Frozen, immutable, `HashSet`, and `Array.Parallel` notes come from the .NET documentation, and the script does not measure them.
+Use this table to pick a collection for hot code. `scripts/Perf.fsx` measures the `seq`, `@`, `List.item`, `List.toArray`, `Map`, `Dictionary`, float sum, string equality, and string order claims. The `Seq.cache`, Frozen, immutable, `HashSet`, and `Array.Parallel` notes come from the .NET documentation, and the script does not measure them.
 
 | Need | Use | Avoid in a hot loop |
 |---|---|---|
@@ -92,6 +92,8 @@ Keep the `Dictionary` local to the function. Return an immutable value when the 
 
 `Map` uses F# structural equality and comparison. `Dictionary` uses .NET equality. For `string` and integer keys, the two agree. For an array key they do not: two equal arrays are one `Map` key and two `Dictionary` keys. A tuple that holds an array can also differ. Pass `HashIdentity.Structural` to the `Dictionary` for such a key.
 For a mutable accumulator with several fields, store a small class in the `Dictionary` and change its fields. A struct value in a `Dictionary` is a copy, so a change to the copy is lost.
+
+Start a float sum at `0.0`, as `List.sum` and `List.average` do, for example `Sum = 0.0 + first`. A sum that starts at the first value keeps a `-0.0`, and `ToString("F3")` and `sprintf "%.3f"` then print `-0.000` where `List.average` gives `0.000`.
 
 ## Order and comparers
 

@@ -91,7 +91,7 @@ A lambda that captures a `let mutable` local makes the compiler move the local i
 
 ## Strings
 
-`sprintf` parses its format once and caches it, but it still boxes each argument and builds the result through closures. It allocates several times more than `String.Concat`.
+`sprintf` allocates more than 2 times as much as `String.Concat` for the same text.
 `+` in a loop or a fold copies the whole string on each step. Use one `StringBuilder`.
 `StringBuilder.Append(int)` and `Append(char)` write without an intermediate string.
 
@@ -114,4 +114,4 @@ sb.Append(name).Append(" total=").Append(total.ToString("F2", inv)).Append('\n')
 ## Boxing
 
 A value type that goes to an `obj` or an interface parameter is boxed: `String.Format("{0}", 5)`, `box x`, `x :> IComparable`, or a `%A` format.
-F# `=` and `compare` on primitive types and strings do not box. On a struct record they call the generated `Equals` and `CompareTo` and do not box in most code. Measure a generic hot path before you trust it.
+F# `=` and `compare` on primitive types and strings do not box. On a struct record, `=` and `compare` allocate nothing in the proof script. Measure a generic hot path before you trust it.

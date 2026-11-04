@@ -61,10 +61,10 @@ try {
     Assert-Checks 'idiomatic pipeline with groupBy, pairwise, and sprintf' (Invoke-Case 'pipeline' 'pipeline') @($T, $T, $T, $T, $T, $F, $any, $F, $any)
     Assert-Checks 'render with ToString and the current culture' (Invoke-Case 'culture' 'good' {
             param($ws) Edit-File (Join-Path $ws 'Telemetry/Report.fs') 's\.Mean\.ToString\("F3", inv\)' 's.Mean.ToString("F3")'
-        }) @($T, $T, $T, $T, $F, $T, $T, $N, $N)
+        }) @($T, $T, $T, $T, $F, $T, $T, $F, $F)
     Assert-Checks 'sort with String.Compare and the current culture' (Invoke-Case 'sort' 'good' {
             param($ws) Edit-File (Join-Path $ws 'Telemetry/Report.fs') 'String\.CompareOrdinal\(' 'String.Compare('
-        }) @($T, $T, $T, $F, $T, $N, $N, $T, $T)
+        }) @($T, $T, $T, $F, $T, $F, $F, $T, $T)
     Assert-Checks 'Dictionary with a reference tuple key' (Invoke-Case 'tuple-key' 'good' {
             param($ws)
             $path = Join-Path $ws 'Telemetry/Report.fs'
@@ -85,10 +85,10 @@ try {
     }
     Assert-Checks 'summarize throws at production size' (Invoke-Case 'throws-large' 'good' {
             param($ws) & $onLargeCall $ws 1 'failwith "large batch"'
-        }) @($T, $T, $T, $F, $T, $N, $N, $T, $T)
+        }) @($T, $T, $T, $F, $T, $F, $F, $T, $T)
     Assert-Checks 'summarize is wrong only at production size' (Invoke-Case 'wrong-large' 'good' {
             param($ws) & $onLargeCall $ws 1 '[]'
-        }) @($T, $T, $T, $F, $T, $N, $N, $T, $T)
+        }) @($T, $T, $T, $F, $T, $F, $F, $T, $T)
     Assert-Checks 'summarize throws during measurement' (Invoke-Case 'throws-measure' 'good' {
             param($ws) & $onLargeCall $ws 3 'failwith "third large batch"'
         }) @($T, $T, $T, $T, $T, $F, $F, $T, $T)
@@ -105,10 +105,10 @@ try {
         }) @($T, $F, $T, $T, $T, $F, $any, $T, $T)
     Assert-Checks 'a forged PASS line with wrong output' (Invoke-Case 'forged-wrong' 'good' {
             param($ws) & $forge $ws "        if List.length readings > 100000 then [] else`n"
-        }) @($T, $F, $T, $F, $T, $F, $N, $T, $T)
+        }) @($T, $F, $T, $F, $T, $F, $F, $T, $T)
     Assert-Checks 'summarize returns a finite mean for an infinite sum' (Invoke-Case 'infinite-mean' 'good' {
             param($ws) Edit-File (Join-Path $ws 'Telemetry/Report.fs') 'Mean = a\.Sum / float a\.Count' 'Mean = (if Double.IsInfinity a.Sum then 0.0 else a.Sum / float a.Count)'
-        }) @($T, $T, $T, $F, $T, $N, $N, $T, $T)
+        }) @($T, $T, $T, $F, $T, $F, $F, $T, $T)
     Assert-Checks 'summarize returns a stale result on repeated calls' (Invoke-Case 'stale-repeat' 'good' {
             param($ws) & $onLargeCall $ws 2 '[]'
         }) @($T, $T, $T, $T, $T, $F, $F, $T, $T)
@@ -154,8 +154,13 @@ try {
         }) @($T, $T, $T, $T, $T, $F, $F, $F, $F)
     Assert-Checks 'summarize keeps the sign of a negative zero mean' (Invoke-Case 'negative-zero' 'good' {
             param($ws) Edit-File (Join-Path $ws 'Telemetry/Report.fs') 'member val Sum = 0\.0 \+ first' 'member val Sum = first'
-        }) @($T, $T, $T, $F, $T, $N, $N, $T, $T)
+        }) @($T, $T, $T, $F, $T, $F, $F, $T, $T)
     Assert-Checks 'an output folder with an ampersand in its path' (Invoke-Case 'amp&dir' 'good') @($T, $T, $T, $T, $T, $T, $T, $T, $T)
+    Assert-Checks 'sortBy with a struct tuple key' (Invoke-Case 'struct-sort-key' 'good' {
+            param($ws)
+            $path = Join-Path $ws 'Telemetry/Report.fs'
+            Edit-File $path '(?s)        Array\.sortInPlaceWith.*?stats\r?\n\r?\n        List\.ofArray stats' '        List.ofArray stats |> List.sortBy (fun s -> struct (s.Site, s.Sensor))'
+        }) @($T, $T, $T, $T, $T, $F, $any, $T, $T)
     Assert-Checks 'summarize takes an array' (Invoke-Case 'signature' 'good' {
             param($ws) Edit-File (Join-Path $ws 'Telemetry/Report.fs') '\(readings: Reading list\)' '(readings: Reading array)'
         }) @($T, $F, $F, $N, $N, $N, $N, $N, $N)

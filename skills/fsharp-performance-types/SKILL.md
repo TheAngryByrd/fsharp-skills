@@ -54,7 +54,7 @@ Use this skill only for code that a measurement shows to be hot, or that a revie
 1. Find the hot functions. Build a production-size input and measure the allocated bytes and the median time of one call of each. Done when you have a number for each function.
 2. List each extra pass, each repeated `seq` enumeration, each `@` or index in a loop, each `Map` or `Set` update in a loop, and each allocation for each element.
 3. Rewrite each item with the rules above. Keep the public types and signatures.
-4. Check that the output is the same as before on the same inputs, under a culture with a comma decimal separator such as `de-DE`, and with strings that differ only in case.
+4. Check that the output is the same as before on the same inputs, under a culture with a comma decimal separator such as `de-DE`, with strings that differ only in case, and with a single `-0.0` value.
 5. Measure again with the same harness. Report the numbers before and after. If an item does not change the numbers, revert it to the readable form.
 
 ## Verify
