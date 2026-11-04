@@ -271,7 +271,7 @@ Test both `fsharp-verify-api` graders against a known good result, the stub, old
 pwsh ./evals/fsharp-verify-api/tests/Grader.Tests.ps1
 ```
 
-Test the `fsharp-performance-types` grader against a known good result, the original input, an idiomatic pipeline, and one defect for each grader rule (culture format, culture sort, tuple key, `Map.tryFind` for each reading, wrong or failed output only at production size, a finite mean for an infinite sum, a stale or intermittent result during measurement, a crash or an exit during measurement, forged `PASS` lines with an exit code of 0 or 3, a hang on a test input, a child process that holds the output open, a changed signature, and a missing project):
+Test the `fsharp-performance-types` grader against a known good result, the original input, an idiomatic pipeline, and one defect for each grader rule (culture format, culture sort, tuple key, `Map.tryFind` for each reading, wrong or failed output only at production size, a finite mean for an infinite sum, a stale or intermittent result during measurement, a crash or an exit during measurement, forged `PASS` lines with an exit code of 0 or 3, a hang on a test input, a child process that outlives the bench, more than 16 MB of output, a changed signature, and a missing project):
 
 ```powershell
 pwsh ./evals/fsharp-performance-types/tests/Grader.Tests.ps1

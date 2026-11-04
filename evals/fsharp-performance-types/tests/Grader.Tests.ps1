@@ -125,10 +125,15 @@ try {
             $path = Join-Path $ws 'Telemetry/Report.fs'
             Edit-File $path '(\r?\n)(\s+)let summarize ([^\r\n]*)=(\r?\n)' "`${1}`${2}let summarize `${3}=`${4}        if List.length readings = 3 then (while true do System.Threading.Thread.Sleep 1000)`${4}"
         } -GraderArgs @{ TestTimeoutSeconds = 20 }) @($T, $F, $T, $T, $T, $T, $T, $T, $T)
-    Assert-Checks 'a child process holds the bench output open' (Invoke-Case 'child-pipe' 'good' {
+    Assert-Checks 'a child process outlives the bench' (Invoke-Case 'child-pipe' 'good' {
             param($ws)
             $path = Join-Path $ws 'Telemetry/Report.fs'
             Edit-File $path '(\r?\n)(\s+)let summarize ([^\r\n]*)=(\r?\n)' "`${1}`${2}let mutable started = false`${1}`${2}let summarize `${3}=`${4}        if List.length readings > 100000 && not started then (started <- true; System.IO.File.WriteAllText(@`"$childPidFile`", string (System.Diagnostics.Process.Start(`"pwsh`", `"-NoProfile -Command Start-Sleep 300`")).Id))`${4}"
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $T)
+    Assert-Checks 'summarize writes more than 16 MB of output' (Invoke-Case 'flood' 'good' {
+            param($ws)
+            $path = Join-Path $ws 'Telemetry/Report.fs'
+            Edit-File $path '(\r?\n)(\s+)let summarize ([^\r\n]*)=(\r?\n)' "`${1}`${2}let summarize `${3}=`${4}        if List.length readings > 100000 then (for _ in 1 .. 400000 do stdout.WriteLine(String.replicate 100 `"x`"))`${4}"
         }) @($T, $T, $T, $F, $F, $F, $F, $F, $F)
     $everyNth = {
         param([string]$ws, [int]$Nth)

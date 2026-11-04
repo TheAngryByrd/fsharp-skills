@@ -37,24 +37,28 @@ $tests = Join-Path $copy 'Telemetry.Tests'
 if (Test-Path $tests) { Remove-Item -Recurse -Force $tests }
 Copy-Item (Join-Path $PSScriptRoot '../inputs/Telemetry.Tests') $tests -Recurse
 
-function Invoke-Bounded([string]$Directory, [string[]]$Arguments, [int]$TimeoutSeconds) {
-    $psi = [System.Diagnostics.ProcessStartInfo]::new('dotnet')
-    foreach ($a in $Arguments) { $psi.ArgumentList.Add($a) }
-    $psi.WorkingDirectory = $Directory
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    $psi.UseShellExecute = $false
-    $process = [System.Diagnostics.Process]::Start($psi)
-    $stdout = $process.StandardOutput.ReadToEndAsync()
-    $stderr = $process.StandardError.ReadToEndAsync()
-    $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
-    if ($timedOut) { $process.Kill($true); $process.WaitForExit() }
-    $streamsClosed = [System.Threading.Tasks.Task]::WaitAll([System.Threading.Tasks.Task[]]@($stdout, $stderr), 30000)
-    $text = if ($streamsClosed) { $stdout.Result + $stderr.Result } else { '' }
-    $problem = if ($timedOut) { "the process did not finish in $TimeoutSeconds seconds" }
-    elseif (-not $streamsClosed) { 'the process output did not close 30 seconds after the process exited' }
-    elseif ($process.ExitCode -ne 0) { "the process exited with code $($process.ExitCode)" }
-    [pscustomobject]@{ Problem = $problem; Lines = @($text -split '\r?\n'); Text = $text }
+function Invoke-Bounded([string]$Directory, [string[]]$Arguments, [int]$TimeoutSeconds, [long]$MaxOutputBytes = 16MB) {
+    $stdout = Join-Path $Directory "bounded-$([guid]::NewGuid().ToString('N')).out"
+    $stderr = "$stdout.err"
+    $process = Start-Process dotnet -ArgumentList $Arguments -WorkingDirectory $Directory -RedirectStandardOutput $stdout -RedirectStandardError $stderr -NoNewWindow -PassThru
+    $null = $process.Handle
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    $size = { (Get-Item $stdout -ErrorAction SilentlyContinue).Length + (Get-Item $stderr -ErrorAction SilentlyContinue).Length }
+    $problem = $null
+    while (-not $process.WaitForExit(250)) {
+        if ($clock.Elapsed.TotalSeconds -ge $TimeoutSeconds) { $problem = "the process did not finish in $TimeoutSeconds seconds"; break }
+        if ((& $size) -gt $MaxOutputBytes) { $problem = "the process wrote more than $MaxOutputBytes bytes"; break }
+    }
+    if ($problem) {
+        $process.Kill($true)
+        $process.WaitForExit()
+    } elseif ((& $size) -gt $MaxOutputBytes) {
+        $problem = "the process wrote more than $MaxOutputBytes bytes"
+    } elseif ($process.ExitCode -ne 0) {
+        $problem = "the process exited with code $($process.ExitCode)"
+    }
+    $text = if ($problem -and (& $size) -gt $MaxOutputBytes) { '' } else { (Get-Content -Raw $stdout) + (Get-Content -Raw $stderr) }
+    [pscustomobject]@{ Problem = $problem; Lines = @("$text" -split '\r?\n'); Text = "$text" }
 }
 
 $build = Invoke-Capture dotnet @('build', $project, '-c', 'Release') -WorkingDirectory (Split-Path $project)
