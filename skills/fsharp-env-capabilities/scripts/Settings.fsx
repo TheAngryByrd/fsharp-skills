@@ -264,10 +264,10 @@ let startError =
         start badProvider |> ignore
         "started"
     with e ->
-        validationFailures e |> String.concat " | "
+        e.GetType().Name + ": " + (validationFailures e |> String.concat " | ")
 
 expect "IStartupValidator.Validate with bad settings"
-    "Host is required | Port must be 1 to 65535, got 70000 | From is required | Retry:Attempts must be 1 or more, got 0"
+    "OptionsValidationException: Host is required | Port must be 1 to 65535, got 70000 | From is required | Retry:Attempts must be 1 or more, got 0"
     startError
 
 let good =

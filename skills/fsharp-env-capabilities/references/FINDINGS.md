@@ -81,7 +81,7 @@ ok    int, key absent -> { Count = 0 }
 
 ```text
 ok    ValidateOnStart with no host, first read -> throws OptionsValidationException
-ok    IStartupValidator.Validate with bad settings -> Host is required | Port must be 1 to 65535, got 70000 | From is required | Retry:Attempts must be 1 or more, got 0
+ok    IStartupValidator.Validate with bad settings -> OptionsValidationException: Host is required | Port must be 1 to 65535, got 70000 | From is required | Retry:Attempts must be 1 or more, got 0
 ```
 
 With two bad sections, `Validate` throws `AggregateException`, not `OptionsValidationException`:

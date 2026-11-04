@@ -19,6 +19,9 @@ $zeroFreeJson = @'
 $badJson = @'
 { "Shipping": { "Carrier": "", "MaxWeightKg": -5, "BlockedRegions": [ "aq" ] } }
 '@
+$rangeJson = @'
+{ "Shipping": { "Carrier": "Contoso Freight", "MaxWeightKg": 0, "RatePerKg": 0, "FreeShippingOver": -1 } }
+'@
 $noSectionJson = '{ "Logging": { "Level": "Information" } }'
 
 $validExpected = @(
@@ -79,6 +82,11 @@ $unnamed = @('Carrier', 'MaxWeightKg', 'RatePerKg', 'BlockedRegions') | Where-Ob
 $checks += New-Check 'The startup error names Carrier, MaxWeightKg, RatePerKg, and BlockedRegions' ($badStopped -and -not $unnamed) $(if ($unnamed) { "not named: $($unnamed -join ', ')" } else { '' })
 $checks += New-Check 'The startup error reports the missing FreeShippingOver key' ($badStopped -and $bad.Text -match 'FreeShippingOver') (Get-LastLines $bad.Text 6)
 
+$range = Invoke-Scenario 'range' 'App.fsx' $rangeJson
+$rangeUnnamed = @('MaxWeightKg', 'RatePerKg', 'FreeShippingOver') | Where-Object { $range.Text -notmatch [regex]::Escape($_) }
+$rangeStopped = $range.ExitCode -ne 0 -and -not $range.Ready -and -not $range.Orders
+$checks += New-Check 'Out-of-range settings stop App.fsx before ready and name MaxWeightKg, RatePerKg, and FreeShippingOver' ($rangeStopped -and -not $rangeUnnamed) "exit $($range.ExitCode), ready $($range.Ready), not named: $($rangeUnnamed -join ', ')`n$(Get-LastLines $range.Text 6)"
+
 $noSection = Invoke-Scenario 'no-section' 'App.fsx' $noSectionJson
 $checks += New-Check 'A missing Shipping section stops App.fsx before ready with no NullReferenceException' ($noSection.ExitCode -ne 0 -and -not $noSection.Ready -and -not $noSection.Orders -and $noSection.Text -notmatch 'NullReferenceException') (Get-LastLines $noSection.Text 6)
 
@@ -86,7 +94,7 @@ $test = Invoke-Scenario 'tests' 'ShippingTests.fsx' $null
 $checks += New-Check 'ShippingTests.fsx runs with no appsettings.json and prints the expected quotes' ($test.ExitCode -eq 0 -and $test.Orders -eq $testExpected) (Get-LastLines $test.Text 6)
 
 $testCode = Get-Code (Join-Path $Workspace 'ShippingTests.fsx')
-$configUse = [regex]::Matches($testCode, '\b(ConfigurationBuilder|IConfiguration\w*|AddJsonFile|AddInMemoryCollection|IOptions\w*|Options\.Create)\b') | ForEach-Object Value | Sort-Object -Unique
+$configUse = [regex]::Matches($testCode, '\b(ConfigurationBuilder|ConfigurationManager|ConfigurationBinder|IConfiguration\w*|AddJsonFile|AddInMemoryCollection|GetSection|IOptions\w*|Options\.Create)\b') | ForEach-Object Value | Sort-Object -Unique
 $checks += New-Check 'ShippingTests.fsx uses no configuration or Options types' ($configUse.Count -eq 0) ($configUse -join ', ')
 
 $shippingCode = Get-Code (Join-Path $Workspace 'Shipping.fsx')
