@@ -252,7 +252,7 @@ let measure (name: string) (agent: unit -> 'a) (reference: unit -> 'a) (validate
         report false timeCheck detail
 
 [<EntryPoint>]
-let main _ =
+let main argv =
     CultureInfo.CurrentCulture <- CultureInfo "de-DE"
     CultureInfo.CurrentUICulture <- CultureInfo "de-DE"
     let big = generate 42 10 100 200_000 false
@@ -283,4 +283,5 @@ let main _ =
     else
         printfn "SKIP render of 1,000 sensors: the output differs from the original code"
 
+    printfn "BENCH DONE %s" argv[0]
     0

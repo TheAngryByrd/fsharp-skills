@@ -2,7 +2,9 @@
 param(
     [Parameter(Mandatory)][string]$Workspace,
     [Parameter(Mandatory)][string]$OutDir,
-    [switch]$SkipNative
+    [switch]$SkipNative,
+    [int]$TestTimeoutSeconds = 300,
+    [int]$BenchTimeoutSeconds = 900
 )
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '../../lib/Grading.psm1') -Force
@@ -35,13 +37,45 @@ $tests = Join-Path $copy 'Telemetry.Tests'
 if (Test-Path $tests) { Remove-Item -Recurse -Force $tests }
 Copy-Item (Join-Path $PSScriptRoot '../inputs/Telemetry.Tests') $tests -Recurse
 
+function Invoke-Bounded([string]$Directory, [string[]]$Arguments, [int]$TimeoutSeconds) {
+    $psi = [System.Diagnostics.ProcessStartInfo]::new('dotnet')
+    foreach ($a in $Arguments) { $psi.ArgumentList.Add($a) }
+    $psi.WorkingDirectory = $Directory
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.UseShellExecute = $false
+    $process = [System.Diagnostics.Process]::Start($psi)
+    $stdout = $process.StandardOutput.ReadToEndAsync()
+    $stderr = $process.StandardError.ReadToEndAsync()
+    $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
+    if ($timedOut) { $process.Kill($true); $process.WaitForExit() }
+    $streamsClosed = [System.Threading.Tasks.Task]::WaitAll([System.Threading.Tasks.Task[]]@($stdout, $stderr), 30000)
+    $text = if ($streamsClosed) { $stdout.Result + $stderr.Result } else { '' }
+    $problem = if ($timedOut) { "the process did not finish in $TimeoutSeconds seconds" }
+    elseif (-not $streamsClosed) { 'the process output did not close 30 seconds after the process exited' }
+    elseif ($process.ExitCode -ne 0) { "the process exited with code $($process.ExitCode)" }
+    [pscustomobject]@{ Problem = $problem; Lines = @($text -split '\r?\n'); Text = $text }
+}
+
 $build = Invoke-Capture dotnet @('build', $project, '-c', 'Release') -WorkingDirectory (Split-Path $project)
 $built = $build.ExitCode -eq 0
 $checks += New-Check 'Telemetry builds' $built $(if (-not $built) { Get-LastLines (($build.Lines | Where-Object { $_ -match ' error ' } | Sort-Object -Unique) -join "`n") })
 
-$test = Invoke-Capture dotnet @('run', '-c', 'Release') -WorkingDirectory $tests
-$passCount = @($test.Lines | Where-Object { $_ -match '^PASS ' }).Count
-$checks += New-Check 'The original Telemetry.Tests build and pass' $(if ($built) { $test.ExitCode -eq 0 -and $passCount -eq 8 } else { $null }) (Get-LastLines $test.Text 8)
+$testsPassed = $null
+$testEvidence = ''
+if ($built) {
+    $testBuild = Invoke-Capture dotnet @('build', 'Telemetry.Tests.fsproj', '-c', 'Release', '-o', 'out') -WorkingDirectory $tests
+    if ($testBuild.ExitCode -ne 0) {
+        $testsPassed = $false
+        $testEvidence = Get-LastLines $testBuild.Text 8
+    } else {
+        $test = Invoke-Bounded $tests @('out/Telemetry.Tests.dll') $TestTimeoutSeconds
+        $passCount = @($test.Lines | Where-Object { $_ -match '^PASS ' }).Count
+        $testsPassed = -not $test.Problem -and $passCount -eq 8
+        $testEvidence = (@($test.Problem) + @(Get-LastLines $test.Text 8) | Where-Object { $_ }) -join "`n"
+    }
+}
+$checks += New-Check 'The original Telemetry.Tests build and pass' $testsPassed $testEvidence
 
 $bench = Join-Path $OutDir 'bench'
 New-Item -ItemType Directory -Force -Path $bench | Out-Null
@@ -70,36 +104,20 @@ $benchBuilt = $benchBuild -and $benchBuild.ExitCode -eq 0
 $benchErrors = if ($benchBuild) { @($benchBuild.Lines | Where-Object { $_ -match 'error FS' } | ForEach-Object { $_ -replace '\s*\[.*$', '' } | Sort-Object -Unique) -join "`n" } else { '' }
 $checks += New-Check 'The public signatures did not change (the grader bench builds against them)' $(if ($built) { $benchBuilt } else { $null }) $benchErrors
 
-function Invoke-Bench([string]$Directory, [int]$TimeoutSeconds) {
-    $psi = [System.Diagnostics.ProcessStartInfo]::new('dotnet', 'out/Bench.dll')
-    $psi.WorkingDirectory = $Directory
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    $psi.UseShellExecute = $false
-    $process = [System.Diagnostics.Process]::Start($psi)
-    $stdout = $process.StandardOutput.ReadToEndAsync()
-    $stderr = $process.StandardError.ReadToEndAsync()
-    $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
-    if ($timedOut) { $process.Kill($true); $process.WaitForExit() }
-    $streamsClosed = [System.Threading.Tasks.Task]::WaitAll([System.Threading.Tasks.Task[]]@($stdout, $stderr), 30000)
-    $text = if ($streamsClosed) { $stdout.Result + $stderr.Result } else { '' }
-    [pscustomobject]@{ TimedOut = $timedOut; StreamsClosed = $streamsClosed; ExitCode = $(if ($timedOut) { $null } else { $process.ExitCode }); Lines = @($text -split '\r?\n'); Text = $text }
-}
-
 $results = @()
 $problem = $null
 $run = $null
 if ($benchBuilt) {
-    $run = Invoke-Bench $bench 900
+    $token = [guid]::NewGuid().ToString('N')
+    $run = Invoke-Bounded $bench @('out/Bench.dll', $token) $BenchTimeoutSeconds
     $results = @(ConvertFrom-ProbeOutput $run.Lines)
     $evidence = @{}
     foreach ($line in $run.Lines) {
         if ($line -match '^(PASS|FAIL) (.*) \[(.*)\]$') { $evidence[$Matches[2]] = $Matches[3] }
     }
     foreach ($r in $results) { if ($evidence.ContainsKey($r.text)) { $r.evidence = $evidence[$r.text] } }
-    if ($run.TimedOut) { $problem = 'the bench did not finish in 900 seconds' }
-    elseif (-not $run.StreamsClosed) { $problem = 'the bench output did not close 30 seconds after the bench exited' }
-    elseif ($run.ExitCode -ne 0) { $problem = "the bench exited with code $($run.ExitCode)" }
+    $problem = if ($run.Problem) { "bench: $($run.Problem)" }
+    elseif ($run.Lines -notcontains "BENCH DONE $token") { 'the bench exited before it printed its completion line' }
 }
 $correctnessFor = @{
     'summarize' = 'summarize gives the same stats as the original code'

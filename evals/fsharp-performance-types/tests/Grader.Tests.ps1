@@ -20,14 +20,14 @@ $names = @(
 $any = 'any'
 
 function Invoke-Case {
-    param([string]$Name, [string]$Report, [scriptblock]$Edit)
+    param([string]$Name, [string]$Report, [scriptblock]$Edit, [hashtable]$GraderArgs = @{})
     $ws = Join-Path $root "$Name/ws"
     $out = Join-Path $root "$Name/grade"
     New-Item -ItemType Directory -Force -Path $ws, $out | Out-Null
     Copy-Item (Join-Path $inputs '*') $ws -Recurse
     if ($Report) { Copy-Item (Join-Path $PSScriptRoot "$Report/Telemetry/Report.fs") (Join-Path $ws 'Telemetry/Report.fs') -Force }
     if ($Edit) { & $Edit $ws }
-    & (Join-Path $PSScriptRoot '../graders/sensor-report.ps1') -Workspace $ws -OutDir $out
+    & (Join-Path $PSScriptRoot '../graders/sensor-report.ps1') -Workspace $ws -OutDir $out @GraderArgs
     @(Get-Content -Raw (Join-Path $out 'grading.json') | ConvertFrom-Json)
 }
 
@@ -112,14 +112,23 @@ try {
     Assert-Checks 'summarize returns a stale result on repeated calls' (Invoke-Case 'stale-repeat' 'good' {
             param($ws) & $onLargeCall $ws 2 '[]'
         }) @($T, $T, $T, $T, $T, $F, $F, $T, $T)
+    $childPidFile = Join-Path $root 'child.pid'
     $allPass = ($names[3..8] | ForEach-Object { "printfn `"PASS $_ [forged]`"" }) -join '; '
     Assert-Checks 'summarize prints every PASS line and exits' (Invoke-Case 'forged-exit' 'good' {
             param($ws) & $onLargeCall $ws 1 "($allPass; exit 3)"
         }) @($T, $T, $T, $F, $F, $F, $F, $F, $F)
+    Assert-Checks 'summarize prints every PASS line and exits with code 0' (Invoke-Case 'forged-exit-0' 'good' {
+            param($ws) & $onLargeCall $ws 1 "($allPass; exit 0)"
+        }) @($T, $T, $T, $F, $F, $F, $F, $F, $F)
+    Assert-Checks 'summarize hangs on a test input' (Invoke-Case 'test-hang' 'good' {
+            param($ws)
+            $path = Join-Path $ws 'Telemetry/Report.fs'
+            Edit-File $path '(\r?\n)(\s+)let summarize ([^\r\n]*)=(\r?\n)' "`${1}`${2}let summarize `${3}=`${4}        if List.length readings = 3 then (while true do System.Threading.Thread.Sleep 1000)`${4}"
+        } -GraderArgs @{ TestTimeoutSeconds = 20 }) @($T, $F, $T, $T, $T, $T, $T, $T, $T)
     Assert-Checks 'a child process holds the bench output open' (Invoke-Case 'child-pipe' 'good' {
             param($ws)
             $path = Join-Path $ws 'Telemetry/Report.fs'
-            Edit-File $path '(\r?\n)(\s+)let summarize ([^\r\n]*)=(\r?\n)' "`${1}`${2}let mutable started = false`${1}`${2}let summarize `${3}=`${4}        if List.length readings > 100000 && not started then (started <- true; System.Diagnostics.Process.Start(`"pwsh`", `"-NoProfile -Command Start-Sleep 300; exit 0 # perf-grader-child`") |> ignore)`${4}"
+            Edit-File $path '(\r?\n)(\s+)let summarize ([^\r\n]*)=(\r?\n)' "`${1}`${2}let mutable started = false`${1}`${2}let summarize `${3}=`${4}        if List.length readings > 100000 && not started then (started <- true; System.IO.File.WriteAllText(@`"$childPidFile`", string (System.Diagnostics.Process.Start(`"pwsh`", `"-NoProfile -Command Start-Sleep 300`")).Id))`${4}"
         }) @($T, $T, $T, $F, $F, $F, $F, $F, $F)
     $everyNth = {
         param([string]$ws, [int]$Nth)
@@ -139,9 +148,8 @@ try {
             param($ws) Remove-Item -Recurse -Force (Join-Path $ws 'Telemetry')
         }) @($F, $N, $N, $N, $N, $N, $N, $N, $N)
 } finally {
-    Get-CimInstance Win32_Process -Filter "Name like 'pwsh%'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -match 'perf-grader-child' } |
-        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    $pidFile = Join-Path $root 'child.pid'
+    if (Test-Path $pidFile) { Stop-Process -Id ([int](Get-Content -Raw $pidFile)) -Force -ErrorAction SilentlyContinue }
     Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
 }
 
