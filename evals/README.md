@@ -266,7 +266,7 @@ Test the `fsharp-signature-files` grader against known good results and bad resu
 pwsh ./evals/fsharp-signature-files/tests/Grader.Tests.ps1
 ```
 
-Test the `fsharp-serialization` grader against a known good result, a `module Codec =` copy, a DTO layer, a test file, comments, and strings that name `JsonNode` or `#load` it, a DTO that rejects unknown line properties, a DTO that reads a missing `reserved` as empty, a `decodeCustomer` with an `exn` error type, the original input, a deleted `Codec.fsx`, an edited `Domain.fsx`, a `JsonObject` parser, a loaded helper that uses `JsonDocument` (normal and verbatim `#load` paths), one options value for customers and orders, `WhenWritingNull`, and `WithSkippableOptionFields()` without `deserializeNullAsNone`:
+Test the `fsharp-serialization` grader against a known good result, a `module Codec =` copy, a DTO layer, a test file, comments, and strings that name `JsonNode` or `#load` it, a DTO that rejects unknown line properties, a DTO that reads a missing `reserved` as empty, a `decodeCustomer` with an `exn` error type, an `exit 0` in `decodeOrder`, the original input, a deleted `Codec.fsx`, an edited `Domain.fsx`, a `JsonObject` parser, a loaded helper that uses `JsonDocument` (normal and verbatim `#load` paths), one options value for customers and orders, `WhenWritingNull`, and `WithSkippableOptionFields()` without `deserializeNullAsNone`:
 
 ```powershell
 pwsh ./evals/fsharp-serialization/tests/Grader.Tests.ps1

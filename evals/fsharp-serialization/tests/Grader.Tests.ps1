@@ -56,6 +56,7 @@ $names = @(
     'encodeCustomer still writes the ann.json shape'
     'Stored customer bo.json decodes to the same customer'
     'encodeCustomer still writes the bo.json shape'
+    'The probe runs to the end'
 )
 
 function New-Expected([string[]]$Failing) {
@@ -101,6 +102,16 @@ try {
         Set-Content $codec $text
     }
     Assert-Checks 'decodeCustomer with an exn error' (Invoke-Case 'exn-customer' 'good' $exnCustomer) @{ ($names[0]) = $true; ($names[1]) = $true; ($names[2]) = $false }
+
+    $earlyExit = {
+        param($ws)
+        $codec = Join-Path $ws 'Codec.fsx'
+        Set-Content $codec ((Get-Content -Raw $codec).Replace("let decodeOrder (json: string) : Result<Order, string> =`n    try", "let decodeOrder (json: string) : Result<Order, string> =`n    if json.Contains ""crypto"" then exit 0`n    try"))
+    }
+    $expectedExit = @{}
+    foreach ($n in $names[0..17]) { $expectedExit[$n] = $true }
+    $expectedExit['The probe runs to the end'] = $false
+    Assert-Checks 'exit in decodeOrder' (Invoke-Case 'early-exit' 'good' $earlyExit) $expectedExit
 
     Assert-Checks 'original input' (Invoke-Case 'input') (New-Expected (@($names[3..11]) + 'No encoded order has a Case or Fields property'))
 

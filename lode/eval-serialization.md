@@ -46,7 +46,7 @@ The text check reads only `Codec.fsx` and the files that it loads with `#load`, 
 `graders/billing-codec.ps1` copies the workspace, restores the original `Domain.fsx` and samples, writes its own `global.json`, and runs `graders/CodecProbe.fsx` with `dotnet fsi`.
 The probe opens `Codec` before `Domain` and gives each expected value a type annotation, so a DTO record with the domain labels cannot capture the probe's record literals.
 The probe compares decoded values with F# values, and compares encoded JSON with each sample through `JsonNode.DeepEquals`. Property order is ignored, numbers compare by value, and a `null` property differs from an absent property.
-The probe calls the agent's functions inside `try`, so a thrown exception fails the check and does not stop the probe. A `NullReferenceException` from `WhenWritingNull` with a missing `int` is one such case.
+The probe calls the agent's functions inside `try`, so a thrown exception fails the check and does not stop the probe. The probe prints `PROBE-END` last, and the check 'The probe runs to the end' fails when an `exit` in the agent's code stops the probe early. A `NullReferenceException` from `WhenWritingNull` with a missing `int` is one such case.
 
 ```mermaid
 flowchart LR
@@ -74,6 +74,7 @@ flowchart LR
 | `WhenWritingNull` | Missing `id` and `reserved` (read as `null`) and a line without `quantity` (throws `NullReferenceException`) |
 | DTO that reads a missing `reserved` as empty | Missing and `null` `reserved` |
 | `decodeCustomer` that returns `Result<Customer, exn>` | The compile check |
+| `exit 0` in `decodeOrder` for an unknown payment kind | The probe runs to the end, and every later check is missing |
 | `WithSkippableOptionFields()` | `null` note (reads as `Some null`) and `null` discount (throws) |
 
 The text check does not find a parser that reads JSON with string functions or regular expressions.

@@ -67,5 +67,8 @@ $probe = Invoke-Capture dotnet @('fsi', 'CodecProbe.fsx') -WorkingDirectory $dir
 $results = @(ConvertFrom-ProbeOutput $probe.Lines)
 $checks += New-Check $compileCheck ($probe.ExitCode -eq 0 -and $results.Count -gt 0) $(if ($results.Count -eq 0) { Get-LastLines $probe.Text 8 } else { '' })
 $checks += $results
+if ($results.Count -gt 0) {
+    $checks += New-Check 'The probe runs to the end' ($probe.Lines -contains 'PROBE-END') $(if ($probe.Lines -contains 'PROBE-END') { '' } else { Get-LastLines $probe.Text 4 })
+}
 
 Write-Checks (Join-Path $OutDir 'grading.json') $checks

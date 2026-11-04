@@ -141,3 +141,5 @@ for (file, customer) in [ "ann.json", ann; "bo.json", bo ] do
     match attempt (fun () -> encodeCustomer customer) with
     | Ok written -> report $"encodeCustomer still writes the {file} shape" (sameJson json written) written
     | Error ex -> report $"encodeCustomer still writes the {file} shape" false ("threw " + ex.Message)
+
+System.Console.WriteLine "PROBE-END"
