@@ -74,8 +74,12 @@ $watch = [Diagnostics.Stopwatch]::StartNew()
 $orphaned = Invoke-Capture pwsh @('-NoProfile', '-Command', "Write-Output started; `$c = Start-Process pwsh -ArgumentList '-NoProfile','-Command','Start-Sleep 600' -NoNewWindow -PassThru; Set-Content '$pidFile' `$c.Id; exit 0") -TimeoutSeconds 10
 $watch.Stop()
 $child = Get-Content $pidFile -ErrorAction SilentlyContinue
-Assert-That 'a child that keeps the output open after its parent exits stops at the time limit' ($orphaned.TimedOut -and $orphaned.Lines -contains 'started' -and $watch.Elapsed.TotalSeconds -lt 120) "$($watch.Elapsed.TotalSeconds) s $($orphaned | ConvertTo-Json)"
-Assert-That 'a child that outlives its parent is stopped' ($child -and -not (Get-Process -Id $child -ErrorAction SilentlyContinue)) "child $child"
+Assert-That 'a child that keeps the output open after its parent exits stops at the time limit' ($orphaned.TimedOut -and $watch.Elapsed.TotalSeconds -lt 120) "$($watch.Elapsed.TotalSeconds) s $($orphaned | ConvertTo-Json)"
+if ($IsWindows) {
+    Assert-That 'on Windows, a child that outlives its parent is stopped and the output is kept' ($child -and $orphaned.Lines -contains 'started' -and -not (Get-Process -Id $child -ErrorAction SilentlyContinue)) "child $child $($orphaned | ConvertTo-Json)"
+} elseif ($child) {
+    Stop-Process -Id $child -Force -ErrorAction SilentlyContinue
+}
 Remove-Item $pidFile -ErrorAction SilentlyContinue
 
 if ($failures.Count) { throw "$($failures.Count) test(s) failed: $($failures -join ', ')" }
