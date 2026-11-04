@@ -39,7 +39,7 @@ The agent must still map each contract rule to a setting, keep the customer shap
 
 The first version of the task asked for a new `Codec.fsx` with no starting code. Claude Sonnet and Codex wrote a `JsonElement` parser by hand without the skill and passed every check (7 and 10 turns). A hand-written parser avoids every converter setting, so the task measured nothing.
 The current prompt says to use `JsonSerializer` with FSharp.SystemTextJson, and not to read or write JSON with `JsonDocument`, `JsonNode`, `JsonElement`, `Utf8JsonReader`, `Utf8JsonWriter`, or a custom `JsonConverter`.
-The text check reads only `Codec.fsx` and the files that it loads with `#load`, except `Domain.fsx`. It reads strings and comments in one scan. It removes `//` and `(* *)` comments before it finds `#load` lines, so a commented `#load` does not add a file. It also removes string contents before it matches type names, so inline JSON that contains `JsonNode` does not fail the check. A test file that uses `JsonNode.DeepEquals`, as the skill recommends, does not fail the check. A DTO with `JsonSerializer` passes.
+The text check reads only `Codec.fsx` and the files that it loads with `#load`, except `Domain.fsx`. It reads `#load` lines, strings, and comments in one scan. It keeps each `#load` line that is outside a string or comment, and removes comments and string contents. A `#load` inside a comment or a multiline string does not add a file, and inline JSON that contains `JsonNode` does not fail the check. A test file that uses `JsonNode.DeepEquals`, as the skill recommends, does not fail the check. A DTO with `JsonSerializer` passes.
 
 ## Grader
 

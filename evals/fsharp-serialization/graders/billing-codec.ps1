@@ -24,13 +24,13 @@ if (-not (Test-Path $source)) {
     return
 }
 
-function Get-Code([string]$Path, [switch]$WithoutStrings) {
-    $tokens = '"""[\s\S]*?"""|@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|\(\*[\s\S]*?\*\)|//[^\n]*'
+function Get-Code([string]$Path) {
+    $tokens = '(?m)^[ \t]*#load\b[^\n]*|"""[\s\S]*?"""|@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|\(\*[\s\S]*?\*\)|//[^\n]*'
     [regex]::Replace((Get-Content -Raw $Path), $tokens, {
             param($m)
-            if ($m.Value.StartsWith('(*') -or $m.Value.StartsWith('//')) { '' }
-            elseif ($WithoutStrings) { '""' }
-            else { $m.Value }
+            if ($m.Value.TrimStart().StartsWith('#load')) { $m.Value }
+            elseif ($m.Value.StartsWith('(*') -or $m.Value.StartsWith('//')) { '' }
+            else { '""' }
         })
 }
 
@@ -48,7 +48,7 @@ function Get-LoadedSources([string]$Path, [System.Collections.Generic.HashSet[st
 $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $seen.Add([IO.Path]::GetFullPath($domain)) | Out-Null
 $sources = @(Get-LoadedSources $source $seen)
-$code = ($sources | ForEach-Object { Get-Code $_ -WithoutStrings }) -join "`n"
+$code = ($sources | ForEach-Object { Get-Code $_ }) -join "`n"
 $byHand = @([regex]::Matches($code, '\b(JsonDocument|JsonNode|JsonObject|JsonArray|JsonValue|JsonElement|Utf8JsonReader|Utf8JsonWriter)\b|\bJsonConverter\s*<') | ForEach-Object Value | Sort-Object -Unique)
 $checks += New-Check 'The codec uses JsonSerializer and does not read or write JSON by hand' ($code -match 'JsonSerializer\.(Serialize|Deserialize)' -and $byHand.Count -eq 0) $(if ($byHand) { 'uses ' + ($byHand -join ', ') } else { '' })
 
