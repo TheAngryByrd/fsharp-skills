@@ -1,0 +1,8 @@
+{
+  "id": "ORD-1003",
+  "status": "pending",
+  "payment": { "kind": "gift_card", "code": "GC-100" },
+  "lines": [],
+  "reserved": { "3": 12 },
+  "channel": "web"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "ORD-1002",
+  "status": "on_hold",
+  "payment": { "kind": "cash" },
+  "lines": [
+    { "sku": "WASHER-M6", "quantity": 100 }
+  ],
+  "customerRef": "ACME-77",
+  "reserved": {}
+}

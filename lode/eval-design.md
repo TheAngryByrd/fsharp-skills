@@ -2,7 +2,7 @@
 
 Skill evals live in `evals/<skill>/`, outside the skill directory, so installed skills do not carry them.
 [evals/README.md](../evals/README.md) documents the runner, the task format, and the grader contract.
-Related Lode files: [eval effort metrics](eval-effort-metrics.md) and [eval rubric](eval-rubric.md).
+Related Lode files: [eval effort metrics](eval-effort-metrics.md), [eval rubric](eval-rubric.md), and [serialization eval](eval-serialization.md).
 
 ## Tasks
 

@@ -1,7 +1,7 @@
 # F# skills
 
 Reusable instructions for AI agents working on F# code, packaged in the [Agent Skills format](https://agentskills.io/home).
-The skills cover domain design, dependency management, error composition, failure paths, idiomatic shape, async composition, API verification, compiler performance, Native AOT, .NET nullness interop, signature files, and performance types.
+The skills cover domain design, dependency management, error composition, failure paths, idiomatic shape, async composition, API verification, compiler performance, Native AOT, .NET nullness interop, signature files, performance types, and JSON serialization.
 
 ## Skills
 
@@ -19,6 +19,7 @@ The skills cover domain design, dependency management, error composition, failur
 | [fsharp-nullness-interop](skills/fsharp-nullness-interop/SKILL.md) | Turns on F# nullness checks, converts `T \| null` results from .NET APIs to F# types at the boundary, and fixes FS0041 errors from new BCL overloads such as `TimeSpan.FromSeconds(int64)`. | Codex and opencode sessions show 435 FS3261 warnings in 37 sessions (61% from 3 sessions) and FS0041 errors in 91 sessions. Claude sessions show 20 FS3261 hits and `TimeSpan.FromSeconds` overload errors. Some fixes compile but hide a real null, for example `Some (call ())`, `string x`, or `Unchecked.nonNull`. |
 | [fsharp-signature-files](skills/fsharp-signature-files/SKILL.md) | Adds `.fsi` files that expose only the API that other projects use, hides type representations behind constructor functions, fixes signature mismatches, and compares the public surface of the built assembly before and after. | Without guidance, an agent can keep the compiler's `--sig` output, which repeats every public member and hides nothing. A missing `RequireQualifiedAccess` in a `.fsi` is only a warning, and a doc comment that is only in the `.fs` leaves the XML file. The skill comes from a maintainer request, not from failure data. |
 | [fsharp-performance-types](skills/fsharp-performance-types/SKILL.md) | Chooses F# collections and types for run time and allocation: `list`, `array`, `ResizeArray`, `seq`, `Map` against `Dictionary`, single-pass loops, `voption`, struct tuples and records, and `StringBuilder` instead of `sprintf`. It measures allocated bytes and run time before and after with `GC.GetAllocatedBytesForCurrentThread` or BenchmarkDotNet. It links to `fsharp-idiom-review` for readable shape. | Agents write collection code that makes several passes, allocates on each element, or updates a `Map` in a loop. The compiler accepts it, and review evidence ranks collection efficiency among the strongest categories of human comments on agent F# code. A rewrite can also change the output: `ToString("F3")` follows the current culture and `sprintf` does not. |
+| [fsharp-serialization](skills/fsharp-serialization/SKILL.md) | Serializes F# records, unions, options, and maps to JSON that matches a wire contract. It covers System.Text.Json defaults, FSharp.SystemTextJson union encodings and option settings, Thoth.Json and DTO layers, and tests that round-trip saved JSON samples. | System.Text.Json throws on F# unions and reads missing fields as `null` or `0`. FSharp.SystemTextJson defaults write `Case` and `Fields`, and some option settings read `null` as `Some null` or a missing required field as `null`. These defects compile and can pass a round trip of the code's own output. |
 
 The patterns can work together: the environment supplies capabilities, and IWSAM interfaces describe possible errors.
 
@@ -111,6 +112,10 @@ Use fsharp-performance-types to make this summary fast for 200,000 rows, and rep
 ```
 
 ```text
+Use fsharp-serialization to make these F# event types match the JSON that the payments service sends, and add tests that round-trip its saved samples.
+```
+
+```text
 Use optimize-fsharp-typecheck-graph to measure this project's type-checking bottleneck and evaluate a compatible improvement.
 ```
 
@@ -148,6 +153,8 @@ The runner checks the public surface, the XML documentation, and an `InternalsVi
 
 The performance types skill includes a runner, `scripts/run.ps1`. It requires the .NET 10 SDK and PowerShell 7.2 or later.
 The runner runs `scripts/Perf.fsx` with `dotnet fsi --optimize+` and measures the allocation, culture, and sort claims of the skill. It fails when a measured result differs from the claim.
+The serialization skill includes a runner, `scripts/run.ps1`. It requires the .NET 10 SDK, PowerShell 7.2 or later, and NuGet access for FSharp.SystemTextJson and Thoth.Json.
+The runner runs `scripts/Serialization.fsx` and fails when a System.Text.Json default, a FSharp.SystemTextJson setting, a wire compatibility result, or a Thoth.Json result differs from the expected result.
 
 The parsing and compiler-performance skills provide guidance. Apply their verification steps to the target project.
 
