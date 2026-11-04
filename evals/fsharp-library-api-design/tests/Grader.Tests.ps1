@@ -21,9 +21,10 @@ $names = @(
     'A second charge with the same key returns the first receipt and does not call the gateway'
     'A charge with a new key calls the gateway'
     'Charges without a key call the gateway each time'
-    'A C# probe that passes an array and a List<ChargeRequest> to ChargeAll builds against the new Payments'
+    'A C# probe that passes an array, a List<ChargeRequest>, and an iterator to ChargeAll builds against the new Payments'
     'ChargeAll charges each request of a C# array'
     'ChargeAll charges each request of a List<ChargeRequest>'
+    'ChargeAll charges each request of an IEnumerable<ChargeRequest> iterator'
 )
 
 function Edit-File([string]$Path, [string]$Pattern, [string]$Replacement) {
@@ -69,8 +70,8 @@ $chargeMembers = '(?s)    /// Charges the request and returns its receipt\..*?(?
 
 try {
     $T = $true; $F = $false; $N = $null
-    Assert-Checks 'good' (Invoke-Case 'good' -Good) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
-    Assert-Checks 'original input' (Invoke-Case 'stub') @($T, $F, $F, $T, $T, $T, $T, $T, $T, $F, $N, $N, $N, $F, $N, $N)
+    Assert-Checks 'good' (Invoke-Case 'good' -Good) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
+    Assert-Checks 'original input' (Invoke-Case 'stub') @($T, $F, $F, $T, $T, $T, $T, $T, $T, $F, $N, $N, $N, $F, $N, $N, $N)
     Assert-Checks 'optional attribute on the existing Charge' (Invoke-Case 'optional-attribute' -Good -Edit {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') $chargeMembers @'
@@ -80,7 +81,7 @@ try {
 
 
 '@
-        }) @($T, $T, $T, $T, $T, $F, $F, $F, $T, $T, $T, $T, $T, $T, $T, $T)
+        }) @($T, $T, $T, $T, $T, $F, $F, $F, $T, $T, $T, $T, $T, $T, $T, $T, $T)
     Assert-Checks 'F# optional parameter on the existing Charge' (Invoke-Case 'fsharp-optional' -Good -Edit {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') $chargeMembers @'
@@ -90,14 +91,14 @@ try {
 
 
 '@
-        }) @($T, $T, $T, $T, $F, $F, $F, $F, $F, $F, $N, $N, $N, $T, $T, $T)
+        }) @($T, $T, $T, $T, $F, $F, $F, $F, $F, $F, $N, $N, $N, $T, $T, $T, $T)
     Assert-Checks 'seq parameter on the existing ChargeAll' (Invoke-Case 'seq-parameter' -Good -Edit {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') '(?s)    /// Charges each request in order.*$' @'
     /// Charges each request in order and returns the receipts.
     member _.ChargeAll(requests: seq<ChargeRequest>) : Receipt list = requests |> Seq.map charge |> List.ofSeq
 '@
-        }) @($T, $T, $T, $T, $T, $F, $F, $F, $T, $T, $T, $T, $T, $T, $T, $T)
+        }) @($T, $T, $T, $T, $T, $F, $F, $F, $T, $T, $T, $T, $T, $T, $T, $T, $T)
     Assert-Checks 'new record field' (Invoke-Case 'record-field' -Good -Edit {
             param($ws)
             $source = Join-Path $ws 'Payments/Payments.fs'
@@ -111,11 +112,11 @@ try {
 
 
 '@
-        }) @($T, $T, $T, $F, $F, $F, $F, $F, $F, $F, $N, $N, $N, $F, $N, $N)
+        }) @($T, $T, $T, $F, $F, $F, $F, $F, $F, $F, $N, $N, $N, $F, $N, $N, $N)
     Assert-Checks 'new interface member' (Invoke-Case 'interface-member' -Good -Edit {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') '(    abstract Submit: request: ChargeRequest \* total: decimal -> string)' "`$1`n    abstract Forget: idempotencyKey: string -> unit"
-        }) @($T, $T, $T, $F, $F, $F, $F, $T, $T, $F, $N, $N, $N, $F, $N, $N)
+        }) @($T, $T, $T, $F, $F, $F, $F, $T, $T, $F, $N, $N, $N, $F, $N, $N, $N)
     Assert-Checks 'new dependency project' (Invoke-Case 'new-dependency' -Good -Edit {
             param($ws)
             $dep = Join-Path $ws 'PaymentsKeys'
@@ -124,11 +125,24 @@ try {
             Set-Content (Join-Path $dep 'Keys.fs') "module PaymentsKeys.Keys`n`nlet normalize (key: string) = key.Trim()"
             Edit-File (Join-Path $ws 'Payments/Payments.fsproj') '<Compile Include="Payments.fs" />' '<Compile Include="Payments.fs" /><ProjectReference Include="../PaymentsKeys/PaymentsKeys.fsproj" />'
             Edit-File (Join-Path $ws 'Payments/Payments.fs') 'match receipts.TryGetValue idempotencyKey with' 'match receipts.TryGetValue(PaymentsKeys.Keys.normalize idempotencyKey) with'
-        }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
     Assert-Checks 'new constructor with an option parameter' (Invoke-Case 'option-constructor' -Good -Edit {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') '/// Charges customers through a gateway.' "/// Options for a charge.`ntype ChargeOptions(key: string option) =`n    member _.HasKey = key.IsSome`n`n/// Charges customers through a gateway."
-        }) @($T, $T, $T, $T, $T, $T, $T, $T, $F, $T, $T, $T, $T, $T, $T, $T)
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $F, $T, $T, $T, $T, $T, $T, $T, $T)
+    $seqOverload = '    member _.ChargeAll(requests: seq<ChargeRequest>) : Receipt list = requests |> Seq.map charge |> List.ofSeq'
+    Assert-Checks 'IReadOnlyList overload only' (Invoke-Case 'readonly-list' -Good -Edit {
+            param($ws)
+            Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) '    member _.ChargeAll(requests: System.Collections.Generic.IReadOnlyList<ChargeRequest>) : Receipt list = requests |> Seq.map charge |> List.ofSeq'
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $F, $N, $N, $N)
+    Assert-Checks 'writable list property' (Invoke-Case 'writable-property' -Good -Edit {
+            param($ws)
+            Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) "$seqOverload`n`n    member val LastBatch: Receipt list = [] with get, set"
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $F, $T, $T, $T, $T, $T, $T, $T, $T)
+    Assert-Checks 'lazy seq overload' (Invoke-Case 'lazy-seq' -Good -Edit {
+            param($ws)
+            Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) '    member _.ChargeAll(requests: seq<ChargeRequest>) : seq<Receipt> = requests |> Seq.map charge'
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
 } finally {
     Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
 }

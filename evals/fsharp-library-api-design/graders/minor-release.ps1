@@ -25,10 +25,11 @@ $probes = [ordered]@{
             'Charges without a key call the gateway each time')
     }
     AnySequence = [pscustomobject]@{
-        Build = 'A C# probe that passes an array and a List<ChargeRequest> to ChargeAll builds against the new Payments'
+        Build = 'A C# probe that passes an array, a List<ChargeRequest>, and an iterator to ChargeAll builds against the new Payments'
         Checks = @(
             'ChargeAll charges each request of a C# array'
-            'ChargeAll charges each request of a List<ChargeRequest>')
+            'ChargeAll charges each request of a List<ChargeRequest>'
+            'ChargeAll charges each request of an IEnumerable<ChargeRequest> iterator')
     }
 }
 
@@ -75,7 +76,7 @@ foreach ($name in $consumers) {
 }
 
 $newOut = Join-Path $OutDir 'new-out'
-$build = Invoke-Capture dotnet @('build', $project, '-c', 'Release', '-o', $newOut) -WorkingDirectory (Split-Path $project)
+$build = Invoke-Capture dotnet @('build', $project, '-c', 'Release', '-o', $newOut, '-p:CopyLocalLockFileAssemblies=true') -WorkingDirectory (Split-Path $project)
 $newDll = Join-Path $newOut 'Payments.dll'
 $built = $build.ExitCode -eq 0 -and (Test-Path $newDll)
 $checks += New-Check 'Payments builds' $built $(if (-not $built) { Get-BuildErrors $build })
@@ -123,6 +124,7 @@ if ($built) {
         $fsharpOnly = @($added | Where-Object {
                 if ($_ -match '\| [^(]*\((?<params>.*)\) : (?<result>.*)$') { $Matches.params -match $anyFSharp -or $Matches.result -match $opaqueResult }
                 elseif ($_ -match '\| new\((?<params>.*)\)$') { $Matches.params -match $anyFSharp }
+                elseif ($_ -match '\| [^:]* : (?<type>.*) with (?<access>[\w, ]+)$') { $Matches.type -match $(if ($Matches.access -match 'set') { $anyFSharp } else { $opaqueResult }) }
                 elseif ($_ -match '\| [^:]* : (?<result>.*)$') { $Matches.result -match $opaqueResult }
                 else { $false }
             })
