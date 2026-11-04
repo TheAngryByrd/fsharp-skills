@@ -20,7 +20,7 @@ $badJson = @'
 { "Shipping": { "Carrier": "", "MaxWeightKg": -5, "BlockedRegions": [ "aq" ] } }
 '@
 $rangeJson = @'
-{ "Shipping": { "Carrier": "Contoso Freight", "MaxWeightKg": 0, "RatePerKg": 0, "FreeShippingOver": -1 } }
+{ "Shipping": { "MaxWeightKg": 0, "RatePerKg": 0, "FreeShippingOver": -1, "BlockedRegions": [ "USA", "" ] } }
 '@
 $noSectionJson = '{ "Logging": { "Level": "Information" } }'
 
@@ -86,6 +86,8 @@ $range = Invoke-Scenario 'range' 'App.fsx' $rangeJson
 $rangeUnnamed = @('MaxWeightKg', 'RatePerKg', 'FreeShippingOver') | Where-Object { $range.Text -notmatch [regex]::Escape($_) }
 $rangeStopped = $range.ExitCode -ne 0 -and -not $range.Ready -and -not $range.Orders
 $checks += New-Check 'Out-of-range settings stop App.fsx before ready and name MaxWeightKg, RatePerKg, and FreeShippingOver' ($rangeStopped -and -not $rangeUnnamed) "exit $($range.ExitCode), ready $($range.Ready), not named: $($rangeUnnamed -join ', ')`n$(Get-LastLines $range.Text 6)"
+$shapeUnnamed = @('Carrier', 'BlockedRegions') | Where-Object { $range.Text -notmatch [regex]::Escape($_) }
+$checks += New-Check 'The out-of-range error also names the missing Carrier key and the wrong-length BlockedRegions codes' ($rangeStopped -and -not $shapeUnnamed) "exit $($range.ExitCode), ready $($range.Ready), not named: $($shapeUnnamed -join ', ')`n$(Get-LastLines $range.Text 6)"
 
 $noSection = Invoke-Scenario 'no-section' 'App.fsx' $noSectionJson
 $checks += New-Check 'A missing Shipping section stops App.fsx before ready with no NullReferenceException' ($noSection.ExitCode -ne 0 -and -not $noSection.Ready -and -not $noSection.Orders -and $noSection.Text -notmatch 'NullReferenceException') (Get-LastLines $noSection.Text 6)

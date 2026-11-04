@@ -14,6 +14,7 @@ $names = @(
     'The startup error names Carrier, MaxWeightKg, RatePerKg, and BlockedRegions'
     'The startup error reports the missing FreeShippingOver key'
     'Out-of-range settings stop App.fsx before ready and name MaxWeightKg, RatePerKg, and FreeShippingOver'
+    'The out-of-range error also names the missing Carrier key and the wrong-length BlockedRegions codes'
     'A missing Shipping section stops App.fsx before ready with no NullReferenceException'
     'ShippingTests.fsx runs with no appsettings.json and prints the expected quotes'
     'ShippingTests.fsx uses no configuration or Options types'
@@ -76,21 +77,31 @@ $maxWeightZeroAllowed = {
     param($ws)
     Edit-File (Join-Path $ws 'Shipping.fsx') 'and! maxWeight = positive "MaxWeightKg" dto\.MaxWeightKg' 'and! maxWeight = (if not dto.MaxWeightKg.HasValue then Error "MaxWeightKg is required" elif dto.MaxWeightKg.Value < 0m then Error "MaxWeightKg must be 0 or more" else Ok dto.MaxWeightKg.Value)'
 }
+$regionLengthSkipped = {
+    param($ws)
+    Edit-File (Join-Path $ws 'Shipping.fsx') 'code\.Length = 2 && ' ''
+}
+$carrierEmptyOnly = {
+    param($ws)
+    Edit-File (Join-Path $ws 'Shipping.fsx') 'if String\.IsNullOrWhiteSpace dto\.Carrier then' 'if dto.Carrier = "" then'
+}
 $testReadsSettings = {
     param($ws)
     Edit-File (Join-Path $ws 'ShippingTests.fsx') '^#load "Shipping\.fsx"' "#load ""Shipping.fsx""`nif System.IO.File.Exists(System.IO.Path.Combine(__SOURCE_DIRECTORY__, ""appsettings.json"")) then failwith ""appsettings.json exists"""
 }
 
 try {
-    Assert-Checks 'good' (Invoke-Case 'good' @('startup-settings-good')) (@($true) * 11)
-    Assert-Checks 'input with Options.Create test' (Invoke-Case 'options' @('startup-settings-options')) @($true, $false, $true, $false, $false, $false, $false, $false, $true, $false, $false)
-    Assert-Checks 'ValidateOnStart with no startup validator call' (Invoke-Case 'late' @('startup-settings-good') $validateLate) @($true, $true, $true, $false, $false, $false, $false, $false, $true, $true, $true)
-    Assert-Checks 'only the first error printed' (Invoke-Case 'first-error' @('startup-settings-good') $firstErrorOnly) @($true, $true, $true, $true, $false, $false, $false, $true, $true, $true, $true)
-    Assert-Checks 'FreeShippingOver bound as decimal' (Invoke-Case 'decimal' @('startup-settings-good') $decimalDefault) @($true, $true, $true, $true, $true, $false, $true, $true, $true, $true, $true)
-    Assert-Checks 'test that fails when appsettings.json exists' (Invoke-Case 'test-reads-settings' @('startup-settings-good') $testReadsSettings) (@($true) * 11)
-    Assert-Checks 'FreeShippingOver 0 rejected' (Invoke-Case 'zero-rejected' @('startup-settings-good') $zeroRejected) @($true, $true, $false, $true, $true, $true, $true, $true, $true, $true, $true)
-    Assert-Checks 'MaxWeightKg 0 accepted' (Invoke-Case 'max-weight-zero' @('startup-settings-good') $maxWeightZeroAllowed) @($true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true)
-    Assert-Checks 'RatePerKg and FreeShippingOver ranges skipped' (Invoke-Case 'range-skipped' @('startup-settings-good') $rangeSkipped) @($true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true)
+    Assert-Checks 'good' (Invoke-Case 'good' @('startup-settings-good')) (@($true) * 12)
+    Assert-Checks 'input with Options.Create test' (Invoke-Case 'options' @('startup-settings-options')) @($true, $false, $true, $false, $false, $false, $false, $false, $false, $true, $false, $false)
+    Assert-Checks 'ValidateOnStart with no startup validator call' (Invoke-Case 'late' @('startup-settings-good') $validateLate) @($true, $true, $true, $false, $false, $false, $false, $false, $false, $true, $true, $true)
+    Assert-Checks 'only the first error printed' (Invoke-Case 'first-error' @('startup-settings-good') $firstErrorOnly) @($true, $true, $true, $true, $false, $false, $false, $false, $true, $true, $true, $true)
+    Assert-Checks 'FreeShippingOver bound as decimal' (Invoke-Case 'decimal' @('startup-settings-good') $decimalDefault) @($true, $true, $true, $true, $true, $false, $true, $true, $true, $true, $true, $true)
+    Assert-Checks 'test that fails when appsettings.json exists' (Invoke-Case 'test-reads-settings' @('startup-settings-good') $testReadsSettings) (@($true) * 12)
+    Assert-Checks 'FreeShippingOver 0 rejected' (Invoke-Case 'zero-rejected' @('startup-settings-good') $zeroRejected) @($true, $true, $false, $true, $true, $true, $true, $true, $true, $true, $true, $true)
+    Assert-Checks 'MaxWeightKg 0 accepted' (Invoke-Case 'max-weight-zero' @('startup-settings-good') $maxWeightZeroAllowed) @($true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true, $true)
+    Assert-Checks 'region code length not checked' (Invoke-Case 'region-length' @('startup-settings-good') $regionLengthSkipped) @($true, $true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true)
+    Assert-Checks 'only an empty Carrier rejected' (Invoke-Case 'carrier-empty-only' @('startup-settings-good') $carrierEmptyOnly) @($true, $true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true)
+    Assert-Checks 'RatePerKg and FreeShippingOver ranges skipped' (Invoke-Case 'range-skipped' @('startup-settings-good') $rangeSkipped) @($true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true, $true)
 } finally {
     $env:SKILL_EVAL_JUDGE = $judge
     Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
