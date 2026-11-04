@@ -14,7 +14,7 @@ $names = @(
     'The startup error names Carrier, MaxWeightKg, RatePerKg, and BlockedRegions'
     'The startup error reports the missing FreeShippingOver key'
     'Out-of-range settings stop App.fsx before ready and name MaxWeightKg, RatePerKg, and FreeShippingOver'
-    'The out-of-range error also names the missing Carrier key and the wrong-length BlockedRegions codes'
+    'The out-of-range error also names the missing Carrier key and the wrong-length BlockedRegions code'
     'A missing Shipping section stops App.fsx before ready with no NullReferenceException'
     'ShippingTests.fsx runs with no appsettings.json and prints the expected quotes'
     'ShippingTests.fsx uses no configuration or Options types'
@@ -81,6 +81,10 @@ $regionLengthSkipped = {
     param($ws)
     Edit-File (Join-Path $ws 'Shipping.fsx') 'code\.Length = 2 && ' ''
 }
+$regionNonEmpty = {
+    param($ws)
+    Edit-File (Join-Path $ws 'Shipping.fsx') 'code\.Length = 2' 'code.Length > 0'
+}
 $carrierEmptyOnly = {
     param($ws)
     Edit-File (Join-Path $ws 'Shipping.fsx') 'if String\.IsNullOrWhiteSpace dto\.Carrier then' 'if dto.Carrier = "" then'
@@ -100,6 +104,7 @@ try {
     Assert-Checks 'FreeShippingOver 0 rejected' (Invoke-Case 'zero-rejected' @('startup-settings-good') $zeroRejected) @($true, $true, $false, $true, $true, $true, $true, $true, $true, $true, $true, $true)
     Assert-Checks 'MaxWeightKg 0 accepted' (Invoke-Case 'max-weight-zero' @('startup-settings-good') $maxWeightZeroAllowed) @($true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true, $true)
     Assert-Checks 'region code length not checked' (Invoke-Case 'region-length' @('startup-settings-good') $regionLengthSkipped) @($true, $true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true)
+    Assert-Checks 'region code only required to be non-empty' (Invoke-Case 'region-nonempty' @('startup-settings-good') $regionNonEmpty) @($true, $true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true)
     Assert-Checks 'only an empty Carrier rejected' (Invoke-Case 'carrier-empty-only' @('startup-settings-good') $carrierEmptyOnly) @($true, $true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true)
     Assert-Checks 'RatePerKg and FreeShippingOver ranges skipped' (Invoke-Case 'range-skipped' @('startup-settings-good') $rangeSkipped) @($true, $true, $true, $true, $true, $true, $false, $true, $true, $true, $true, $true)
 } finally {
