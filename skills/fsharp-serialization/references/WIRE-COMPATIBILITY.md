@@ -11,10 +11,12 @@ The results in this file use FSharp.SystemTextJson 1.4.36 with `WithSkippableOpt
 | Rename a union case | Throws `JsonException`. Keep the old name with `[<JsonName "Old">]` on the case. | Throws. |
 | Add a required record field | Throws `JsonException` for the missing field. | Reads. The new field is ignored. |
 | Add an `option` record field | Reads as `None`. | Reads. The new field is ignored. |
-| Rename a record field | Throws `JsonException`. Keep the old name with `[<JsonPropertyName "Old">]`. | Throws. |
+| Rename a required record field | Throws `JsonException`. Keep the old name with `[<JsonPropertyName "Old">]`. | Throws. |
+| Rename an `option` record field | Reads as `None`, and the saved value is lost. Keep the old name with `[<JsonPropertyName "Old">]`. | Reads as `None` in old code, and the value is lost. |
 | Remove a record field | Reads. The old field is ignored. | Throws when old code requires the field. |
 | Change a field type | Throws. | Throws. |
-| Reorder fields or cases | Reads. | Reads. |
+| Reorder record fields or union cases | Reads. | Reads. |
+| Reorder the fields of a union case | With a positional `Fields` array, two fields of the same type swap values with no error. Keep the field order. | Same. |
 
 Add the case or field to the reader before the writer sends it.
 To keep old readers working when you add a union case, ask whether each reader has a fallback case. FSharp.SystemTextJson has no fallback for an unknown case. A DTO or a Thoth.Json decoder can map it to an `Unknown` case.

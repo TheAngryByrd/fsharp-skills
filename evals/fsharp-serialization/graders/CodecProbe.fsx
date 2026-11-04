@@ -102,8 +102,8 @@ checkDecode
     cashOrder
 checkDecode
     "Unknown properties in a line and in the payment are ignored"
-    """{"id":"ORD-1003","status":"pending","payment":{"kind":"gift_card","code":"GC-100","balance":40},"lines":[],"reserved":{"3":12},"meta":{"v":2}}"""
-    giftCardOrder
+    """{"id":"ORD-1001","status":"shipped","payment":{"kind":"card","last4":"4242","expiry":"12/27","brand":"visa"},"lines":[{"sku":"BOLT-M6","quantity":40,"note":"zinc plated","warehouse":12},{"sku":"NUT-M6","quantity":40,"bin":{"row":2}}],"discount":2.5,"reserved":{"12":3,"7":1},"meta":{"v":2}}"""
+    cardOrder
 
 
 checkError "A missing required id returns Error" """{"status":"pending","payment":{"kind":"cash"},"lines":[],"reserved":{}}"""

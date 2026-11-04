@@ -173,6 +173,16 @@ type ReadingV3 =
 
 check "JsonName keeps the old wire name of a renamed union case" (Ok Top) (read<LevelV2> fsharp """{"Case":"High"}""")
 check "JsonPropertyName keeps the old wire name of a renamed field" (Ok { Probe = "t1"; Value = 3; Unit = None }) (read<ReadingV3> skippableNull """{"Sensor":"t1","Value":3}""")
+type ReadingV4 =
+    { Sensor: string
+      Value: int
+      Units: string option }
+
+type Move = Move of source: string * target: string
+type MoveV2 = Move2 of target: string * source: string
+
+check "A renamed option field reads JSON saved before the change as None" (Ok { Sensor = "t1"; Value = 3; Units = None }) (read<ReadingV4> skippableNull """{"Sensor":"t1","Value":3,"Unit":"C"}""")
+check "Reordered fields of a union case swap values in a positional Fields array" (Ok(Move2("a", "b"))) (read<MoveV2> fsharp ((write fsharp (Move("a", "b"))).Replace("\"Move\"", "\"Move2\"")))
 check "A new option field reads JSON saved before the change as None" (Ok { Sensor = "t1"; Value = 3; Unit = None }) (read<Reading> skippableNull """{"Sensor":"t1","Value":3}""")
 
 open System.Text.Json.Nodes

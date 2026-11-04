@@ -70,9 +70,16 @@ try {
     $testsFile = {
         param($ws)
         Set-Content (Join-Path $ws 'Tests.fsx') "#load ""Codec.fsx""`nopen System.Text.Json.Nodes`nlet same (a: string) (b: string) = JsonNode.DeepEquals(JsonNode.Parse a, JsonNode.Parse b)"
-        Add-Content (Join-Path $ws 'Codec.fsx') "`n// Do not parse JSON by hand with JsonDocument.`n(* JsonNode is not used here. *)"
+        Add-Content (Join-Path $ws 'Codec.fsx') "`n// Do not parse JSON by hand with JsonDocument.`n(* JsonNode is not used here. Example:`n#load ""Tests.fsx""`n*)`n// #load ""Tests.fsx"""
     }
     Assert-Checks 'JsonNode in a test file and in comments' (Invoke-Case 'tests-file' 'good' $testsFile) (New-Expected @())
+
+    $strictLines = {
+        param($ws)
+        $codec = Join-Path $ws 'Codec.fsx'
+        Set-Content $codec ((Get-Content -Raw $codec) -replace '\[<CLIMutable>\]\r?\ntype LineDto', "[<CLIMutable; JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)>]`ntype LineDto")
+    }
+    Assert-Checks 'DTO that rejects unknown line properties' (Invoke-Case 'strict-lines' 'dto' $strictLines) (New-Expected @('Unknown properties in a line and in the payment are ignored'))
 
     Assert-Checks 'original input' (Invoke-Case 'input') (New-Expected (@($names[3..11]) + 'No encoded order has a Case or Fields property'))
 

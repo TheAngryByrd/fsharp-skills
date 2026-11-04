@@ -121,6 +121,6 @@ let decode (json: string) : Result<Shape, string> =
         Error ex.Message
 ```
 
-With FSharp.SystemTextJson, the JSON `null` for a record or a union throws `JsonException`. With System.Text.Json alone, or for a DTO class, `Deserialize` returns `null`. Check the result for `null` before you use it.
+With FSharp.SystemTextJson, the JSON `null` for a record or a union throws `JsonException`. A single-case union around an option is the exception: it reads `null` as a `null` union. With System.Text.Json alone, or for a DTO class, `Deserialize` returns `null`. In these cases, check the result for `null` before you use it.
 
 A `NullReferenceException` or `NotSupportedException` from `Deserialize` shows a settings problem. Fix the settings, and do not catch it.

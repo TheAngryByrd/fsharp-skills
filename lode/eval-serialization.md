@@ -39,7 +39,7 @@ The agent must still map each contract rule to a setting, keep the customer shap
 
 The first version of the task asked for a new `Codec.fsx` with no starting code. Claude Sonnet and Codex wrote a `JsonElement` parser by hand without the skill and passed every check (7 and 10 turns). A hand-written parser avoids every converter setting, so the task measured nothing.
 The current prompt says to use `JsonSerializer` with FSharp.SystemTextJson, and not to read or write JSON with `JsonDocument`, `JsonNode`, `JsonElement`, `Utf8JsonReader`, `Utf8JsonWriter`, or a custom `JsonConverter`.
-The text check reads only `Codec.fsx` and the files that it loads with `#load`, except `Domain.fsx`. It removes `//` and `(* *)` comments first. A test file that uses `JsonNode.DeepEquals`, as the skill recommends, does not fail the check. A DTO with `JsonSerializer` passes.
+The text check reads only `Codec.fsx` and the files that it loads with `#load`, except `Domain.fsx`. It removes `//` and `(* *)` comments before it finds `#load` lines and before it matches type names, so a commented `#load` does not add a file. A test file that uses `JsonNode.DeepEquals`, as the skill recommends, does not fail the check. A DTO with `JsonSerializer` passes.
 
 ## Grader
 
@@ -64,7 +64,8 @@ flowchart LR
 
 | Case | Failing checks |
 | --- | --- |
-| Known good, `module Codec =` copy, DTO layer, a test file and comments that name `JsonNode` | None |
+| Known good, `module Codec =` copy, DTO layer, a test file and comments that name `JsonNode` or `#load` it | None |
+| DTO that rejects unknown line properties | Unknown properties in a line and in the payment |
 | Original input | Every order sample check, `null` optional values, unknown nested properties, and `Case`/`Fields` |
 | No `Codec.fsx` | The compile check |
 | Edited `Domain.fsx` | `Domain.fsx is unchanged` |
@@ -80,22 +81,25 @@ The `checkError` cases do not cover a missing `status`, `payment`, `reserved`, o
 
 ## Eval results on issue 12
 
-The run used 2 runs for each target and mode, explicit invocation, and the final grader (`grade-evals.ps1`). Each run with the skill loaded it. opencode used `github-copilot/gpt-6.1-sol`, because the default model failed with `Token refresh failed: 401` and `github-copilot/gpt-5.5` failed with "Unexpected server error".
+The runs used explicit invocation and the final grader (`grade-evals.ps1`). Each run with the skill loaded it. opencode used free models, as the maintainer asked.
 
-| Target | Mode | Pass rate | Turns | Failed builds |
-| --- | --- | --- | --- | --- |
-| claude:sonnet | with | 100% | 8.5 | 0.0 |
-| claude:sonnet | without | 92% | 18.5 | 2.0 |
-| codex | with | 100% | 16.0 | 0.0 |
-| codex | without | 100% | 20.5 | 1.5 |
-| opencode:github-copilot/gpt-6.1-sol | with | 100% | 17.0 | 0.0 |
-| opencode:github-copilot/gpt-6.1-sol | without | 100% | 19.0 | 0.0 |
+| Target | Mode | Counted runs | Pass rate | Turns | Failed builds |
+| --- | --- | --- | --- | --- | --- |
+| claude:sonnet | with | 2 | 100% | 8.5 | 0.0 |
+| claude:sonnet | without | 2 | 92% | 18.5 | 2.0 |
+| codex | with | 2 | 100% | 16.0 | 0.0 |
+| codex | without | 2 | 100% | 20.5 | 1.5 |
+| opencode:opencode/deepseek-v4.1-flash-free | with | 2 | 100% | 25.0 | 5.5 |
+| opencode:opencode/deepseek-v4.1-flash-free | without | 1 | 100% | 29.0 | 11.0 |
+| opencode:opencode/glm-5.3-flash-free | with | 0 | - | - | - |
+| opencode:opencode/glm-5.3-flash-free | without | 0 | - | - | - |
 
 - Claude Sonnet without the skill used `WhenWritingNull` in both runs. A missing `id` then decoded as `Ok` with `Id = null`, and a line without `quantity` threw. With the skill, both runs used `deserializeNullAsNone = true`.
 - In one earlier baseline run, Claude Sonnet without the skill used `WithSkippableOptionFields(SkippableOptionFields.Always)` and failed both `null` option checks.
-- Codex and opencode used `deserializeNullAsNone = true` and `WithOverrides` in both modes. The skill reduced turns and failed builds for these targets, but not the pass rate.
-- After the run, the skill got five more proof checks and two wording changes: one options value for each wire contract, and the top-level `Box None` read. The rules did not change.
+- Codex and deepseek used `deserializeNullAsNone = true` and `WithOverrides` in both modes. The skill reduced turns and failed builds for these targets, but not the pass rate.
+- The free opencode models hit the account limit "Free usage limit reached". `opencode run` then retries with no output until the 30-minute limit. The second deepseek run without the skill stopped after 4 turns with `Codec.fsx` unchanged (15/25 checks). The first glm run with the skill produced an empty transcript. These runs measure the quota, not the model, so the table does not count them. The other glm runs did not start.
+- The Claude Sonnet and Codex runs used the skill before the PR review fixes. The opencode runs used the final skill. The fixes changed reference text and proof checks, not the rules.
 
 ```powershell
-pwsh ./evals/run-evals.ps1 -Skill fsharp-serialization -Target claude:sonnet,codex,opencode:github-copilot/gpt-6.1-sol -Runs 2
+pwsh ./evals/run-evals.ps1 -Skill fsharp-serialization -Target claude:sonnet,codex,opencode:opencode/deepseek-v4.1-flash-free,opencode:opencode/glm-5.3-flash-free -Runs 2
 ```
