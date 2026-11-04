@@ -155,7 +155,7 @@ Safe alternative: add the new module and keep the old one. Mark the old one `[<O
 let area shape = ...
 ```
 
-F# callers do not see a change. The compiled method is now `Area`, so C# fails with CS0117, old binaries throw `MissingMethodException`, and package validation reports CP0002.
+F# callers do not see a change. The compiled method is now `Area`, so C# fails with CS0117, old binaries throw `MissingMethodException`, and package validation reports CP0002. In `CompiledNameOnSmallFunction`, the attribute is on `half`. An old Release F# binary uses its copied body and gives the same output. Only the old C# binary throws.
 
 Safe alternative: use `CompiledName` only on a new function.
 

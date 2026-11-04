@@ -12,7 +12,7 @@ A published library has two contracts:
 - **Binary compatibility:** an assembly that was compiled against 1.0.0 runs with 1.1.0.
   NuGet gives this case often. When package A was built against 1.0.0 and the app needs 1.1.0, A runs with 1.1.0 and is not compiled again.
 
-A minor or patch version must keep both contracts. A clean build of every consumer that you can see proves only source compatibility.
+A minor or patch version must keep both contracts. A new overload on a type member is the one exception, because it breaks only a C# method group with no delegate type. A clean build of every consumer that you can see proves only source compatibility.
 Many F# breaking changes do not look like breaking changes. Some are source-only, and package validation does not report them.
 
 ## Changes and their results
@@ -34,7 +34,7 @@ Each row is a change to version 1.0.0 that [scripts/run.ps1](scripts/run.ps1) pr
 | F# `?x` parameter added to an existing member | ok | CS7036 | MissingMethodException | CP0002 |
 | Member added to a public interface | FS0366 | CS0535 | TypeLoadException | CP0006 |
 | Module renamed | FS0039 | CS0103 | TypeLoadException | CP0001 |
-| `[<CompiledName>]` added to an existing function | ok | CS0117 | MissingMethodException | CP0002 |
+| `[<CompiledName>]` added to an existing function | ok | CS0117 | MissingMethodException, except in an F# consumer that copied a small body | CP0002 |
 | `[<Obsolete>]` on a function | FS0044 | CS0618 | ok | not reported |
 | New overload on a type member | ok | CS8917 for a method group such as `var total = client.Total;` | ok | ok |
 

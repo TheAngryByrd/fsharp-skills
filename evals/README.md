@@ -276,7 +276,7 @@ Test the `fsharp-serialization` grader against a known good result, a `module Co
 pwsh ./evals/fsharp-serialization/tests/Grader.Tests.ps1
 ```
 
-Test the `minor-release` grader against a known good result, the original input, five breaking changes, and eleven cases for the C# surface, the probes, new dependencies, and FSharp.Core versions. Test the `classify-changes` grader against a correct answer, common mistakes, a string value, a missing change, and no answer:
+Test the `minor-release` grader against a known good result, the original input, five breaking changes, and twelve cases for the C# surface, the probes, new dependencies, and FSharp.Core versions. Test the `classify-changes` grader against a correct answer, common mistakes, a string value, a missing change, and no answer:
 
 ```powershell
 pwsh ./evals/fsharp-library-api-design/tests/Grader.Tests.ps1

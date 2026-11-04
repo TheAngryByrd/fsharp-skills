@@ -22,6 +22,7 @@ $probes = [ordered]@{
         Checks = @(
             'A second charge with the same key returns the first receipt and does not call the gateway'
             'A charge with a new key calls the gateway'
+            'A charge with the first key after a different key returns the first receipt and does not call the gateway'
             'Charges without a key call the gateway each time')
     }
     AnySequence = [pscustomobject]@{
