@@ -40,6 +40,15 @@ function Copy-Workspace {
         }
 }
 
+function Stop-ChildProcess([int]$ParentId, [datetime]$After) {
+    if (-not $IsWindows) { return }
+    foreach ($child in @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $ParentId")) {
+        if ($child.CreationDate -ge $After) {
+            try { [System.Diagnostics.Process]::GetProcessById([int]$child.ProcessId).Kill($true) } catch [System.ArgumentException], [System.InvalidOperationException] { }
+        }
+    }
+}
+
 function Invoke-Capture {
     param([Parameter(Mandatory)][string]$FilePath, [string[]]$Arguments = @(), [string]$WorkingDirectory = $PWD.Path, [int]$TimeoutSeconds = 0)
     if ($TimeoutSeconds -gt 0) {
@@ -49,13 +58,24 @@ function Invoke-Capture {
         $info.RedirectStandardOutput = $true
         $info.RedirectStandardError = $true
         $info.UseShellExecute = $false
+        $clock = [System.Diagnostics.Stopwatch]::StartNew()
         $process = [System.Diagnostics.Process]::Start($info)
         try {
+            $started = $process.StartTime
             $stdout = $process.StandardOutput.ReadToEndAsync()
             $stderr = $process.StandardError.ReadToEndAsync()
-            $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
+            $limit = $TimeoutSeconds * 1000
+            $timedOut = -not $process.WaitForExit($limit)
             if ($timedOut) { $process.Kill($true); $process.WaitForExit() }
-            $lines = @(($stdout.Result + $stderr.Result) -split '\r?\n' | Where-Object { $_ -ne '' })
+            $streams = [System.Threading.Tasks.Task[]]@($stdout, $stderr)
+            # A child that outlives the process keeps the output pipes open, so the reads also need the deadline.
+            if (-not [System.Threading.Tasks.Task]::WaitAll($streams, [int][Math]::Max(1000, $limit - $clock.ElapsedMilliseconds))) {
+                $timedOut = $true
+                Stop-ChildProcess $process.Id $started
+                $null = [System.Threading.Tasks.Task]::WaitAll($streams, 10000)
+            }
+            $text = @($streams | Where-Object IsCompletedSuccessfully | ForEach-Object Result) -join "`n"
+            $lines = @($text -split '\r?\n' | Where-Object { $_ -ne '' })
             if ($timedOut) { $lines += "timed out after $TimeoutSeconds seconds: $FilePath $($Arguments -join ' ')" }
             return [pscustomobject]@{ ExitCode = $(if ($timedOut) { -1 } else { $process.ExitCode }); Lines = $lines; Text = ($lines -join "`n"); TimedOut = $timedOut }
         } finally {
