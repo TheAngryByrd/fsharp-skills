@@ -33,12 +33,12 @@ let config (pairs: (string * string) list) =
         .Build()
 
 [<CLIMutable>]
-type RetryDto = { Attempts: Nullable<int> }
+type RetryDto = { Attempts: string }
 
 [<CLIMutable>]
 type MailSettingsDto =
     { Host: string
-      Port: Nullable<int>
+      Port: string
       From: string
       Recipients: string[]
       Retry: RetryDto }
@@ -56,17 +56,26 @@ module MailSettings =
     let private required key (value: string) =
         if String.IsNullOrWhiteSpace value then Error $"{key} is required" else Ok value
 
-    let private port (value: Nullable<int>) =
-        if not value.HasValue then Error "Port is required"
-        elif value.Value < 1 || value.Value > 65535 then Error $"Port must be 1 to 65535, got {value.Value}"
-        else Ok value.Value
+    let private wholeNumber key (value: string) =
+        match Int32.TryParse(value, Globalization.NumberStyles.Integer, Globalization.CultureInfo.InvariantCulture) with
+        | true, number -> Ok number
+        | false, _ -> Error $"{key} must be a whole number, got '{value}'"
+
+    let private port (value: string) =
+        if String.IsNullOrWhiteSpace value then
+            Error "Port is required"
+        else
+            wholeNumber "Port" value
+            |> Result.bind (fun number ->
+                if number < 1 || number > 65535 then Error $"Port must be 1 to 65535, got {number}" else Ok number)
 
     let private retry (dto: RetryDto) =
-        match Option.ofObj (box dto) with
-        | None -> Ok None
-        | Some _ when not dto.Attempts.HasValue -> Ok None
-        | Some _ when dto.Attempts.Value < 1 -> Error $"Retry:Attempts must be 1 or more, got {dto.Attempts.Value}"
-        | Some _ -> Ok(Some { Attempts = dto.Attempts.Value })
+        if isNull (box dto) || String.IsNullOrWhiteSpace dto.Attempts then
+            Ok None
+        else
+            wholeNumber "Retry:Attempts" dto.Attempts
+            |> Result.bind (fun attempts ->
+                if attempts < 1 then Error $"Retry:Attempts must be 1 or more, got {attempts}" else Ok(Some { Attempts = attempts }))
 
     let parse (dto: MailSettingsDto) : Result<MailSettings, string list> =
         match Option.ofObj (box dto) with
@@ -184,6 +193,9 @@ type PlainDto = { Name: string; Count: int }
 type DecimalDto = { Rate: decimal }
 
 [<CLIMutable>]
+type NullableDto = { Limit: Nullable<int> }
+
+[<CLIMutable>]
 type ReadOnlyListDto = { Items: IReadOnlyList<string> }
 
 let errorMessage f =
@@ -198,7 +210,8 @@ expect "string list, key present" "throws InvalidOperationException" (outcome (f
 expect "string list, key absent" "{ Codes = null }" (outcome (fun () -> (config [ ("Other", "x") ]).Get<ListDto>()))
 expect "int, key absent" "{ Count = 0 }" (outcome (fun () -> (config [ ("Other", "x") ]).Get<IntDto>()))
 expect "int, key not a number" "throws InvalidOperationException" (outcome (fun () -> (config [ ("Count", "ten") ]).Get<IntDto>()))
-expect "Nullable<int>, key absent" "null" (outcome (fun () -> (config [ ("Other", "x") ]).Get<MailSettingsDto>().Port))
+expect "Nullable<int>, key absent" "{ Limit = null }" (outcome (fun () -> (config [ ("Other", "x") ]).Get<NullableDto>()))
+expect "Nullable<int>, key not a number" "throws InvalidOperationException" (outcome (fun () -> (config [ ("Limit", "ten") ]).Get<NullableDto>()))
 expect "string[], key present" "[|\"a\"; \"b\"|]" (outcome (fun () -> (config [ "Recipients:0", "a"; "Recipients:1", "b" ]).Get<MailSettingsDto>().Recipients))
 expect "nested record, section absent" "null" (outcome (fun () -> (config [ ("Host", "h") ]).Get<MailSettingsDto>().Retry))
 expect "whole section absent" "null" (outcome (fun () -> (config []).GetSection("Mail").Get<MailSettingsDto>()))
@@ -215,7 +228,14 @@ let optionsDefault =
     services.AddOptions<MailSettingsDto>().Bind((config []).GetSection "Mail") |> ignore
     services.BuildServiceProvider().GetRequiredService<IOptions<MailSettingsDto>>().Value
 
-expect "AddOptions().Bind, section absent" "instance, Port null, Retry null" (if isNull (box optionsDefault) then "null" elif optionsDefault.Port.HasValue || not (isNull (box optionsDefault.Retry)) then "field set" else "instance, Port null, Retry null")
+let plainOptions () =
+    let services = ServiceCollection()
+    services.AddOptions<PlainDto>().Bind(config [ "Name", "n"; "Count", "3" ]) |> ignore
+    services.BuildServiceProvider().GetRequiredService<IOptions<PlainDto>>().Value
+
+expect "record without CLIMutable, AddOptions().Bind, every key present" "throws MissingMethodException" (outcome plainOptions)
+
+expect "AddOptions().Bind, section absent" "instance, Port null, Retry null" (if isNull (box optionsDefault) then "null" elif not (isNull optionsDefault.Port) || not (isNull (box optionsDefault.Retry)) then "field set" else "instance, Port null, Retry null")
 
 printfn "Parse reports every error"
 
@@ -223,6 +243,10 @@ let bad = config [ "Mail:From", " "; "Mail:Port", "70000"; "Mail:Retry:Attempts"
 expect "parse bad section"
     "Error [\"Host is required\"; \"Port must be 1 to 65535, got 70000\"; \"From is required\"; \"Retry:Attempts must be 1 or more, got 0\"]"
     (outcome (fun () -> bad.GetSection("Mail").Get<MailSettingsDto>() |> MailSettings.parse))
+
+expect "parse text that is not a number, with missing keys"
+    "Error [\"Host is required\"; \"Port must be a whole number, got 'ten'\"; \"From is required\"; \"Retry:Attempts must be a whole number, got 'x'\"]"
+    (outcome (fun () -> (config [ "Mail:Port", "ten"; "Mail:Retry:Attempts", "x" ]).GetSection("Mail").Get<MailSettingsDto>() |> MailSettings.parse))
 
 expect "parse a missing section"
     "Error [\"the Mail section is missing\"]"

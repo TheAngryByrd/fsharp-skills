@@ -25,12 +25,13 @@ flowchart LR
 | --- | --- | --- |
 | `string` in a `[<CLIMutable>]` record | value | `null` |
 | `int` or `decimal` in a `[<CLIMutable>]` record | value. Text that does not convert throws `InvalidOperationException`. | `0`, with no error |
-| `Nullable<int>` | value | `null` |
+| `Nullable<int>` | value. Text that does not convert throws `InvalidOperationException`. | `null` |
 | `string[]`, `IReadOnlyList<string>` | value | `null` |
 | `string list` | throws `InvalidOperationException` (the binder calls the `FSharpList` constructor) | `null` |
 | `string option` | `None`, even when the key has a value | `None` |
 | nested `[<CLIMutable>]` record | value | `null` |
-| record without `[<CLIMutable>]` | binds through its constructor | throws, and names only the first missing parameter |
+| record without `[<CLIMutable>]`, `Get<T>()` | binds through its constructor | throws, and names only the first missing parameter |
+| record without `[<CLIMutable>]`, `AddOptions<T>().Bind` | `.Value` throws `MissingMethodException` (no parameterless constructor) | same |
 
 `section.Get<T>()` returns `null` when the section is missing. `AddOptions<T>().Bind(section)`
 returns an instance with every field at its default. In the Options form, the parser therefore
@@ -38,8 +39,11 @@ reports each required key, not the missing section.
 
 Consequences:
 
-- Bind to a `[<CLIMutable>]` DTO. Use `Nullable<_>` for a required number, so that a missing key
-  differs from `0`. Use arrays for lists. Do not put `option` or `list` in the DTO.
+- Bind to a `[<CLIMutable>]` DTO. Use `string` for a number, and convert it in the parser. A
+  missing key is then `null`, not `0`. Text that does not convert becomes one more parser error.
+- A `Nullable<_>` number also tells a missing key from `0`. But text that does not convert throws
+  in the binder, before the parser runs, so the error list holds only that key.
+- Use arrays for lists. Do not put `option` or `list` in the DTO.
 - Treat every reference field as possibly `null`, including the DTO itself and nested records.
 - The DTO is for the binder only. Functions read the parsed type.
 
@@ -61,6 +65,21 @@ let parse (dto: MailSettingsDto) : Result<MailSettings, string list> =
             and! retry = retry dto.Retry
             return { Host = host; Port = port; From = from; Recipients = ...; Retry = retry }
         }
+```
+
+The number fields are `string` in the DTO. One helper converts the text and reports the key:
+
+```fsharp
+let private wholeNumber key (value: string) =
+    match Int32.TryParse(value, Globalization.NumberStyles.Integer, Globalization.CultureInfo.InvariantCulture) with
+    | true, number -> Ok number
+    | false, _ -> Error $"{key} must be a whole number, got '{value}'"
+```
+
+`Port = "ten"` with no `Host` and no `From` gives all three errors:
+
+```text
+Error ["Host is required"; "Port must be a whole number, got 'ten'"; "From is required"; ...]
 ```
 
 Name the configuration key in each error. The reader fixes `appsettings.json`, not the F# code.
