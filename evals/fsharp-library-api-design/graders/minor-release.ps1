@@ -41,6 +41,10 @@ function Test-Output([string]$Name, $Result) {
     $Result.ExitCode -eq 0 -and ((Get-OutputLines $Result) -join "`n") -ceq ($expected[$Name] -join "`n")
 }
 
+function Get-AssemblyVersion([string]$Path) {
+    try { [Reflection.AssemblyName]::GetAssemblyName($Path).Version } catch { [version]'0.0' }
+}
+
 function Get-BuildErrors($Result) {
     $errors = @($Result.Lines | Where-Object { $_ -match ' error ' } | ForEach-Object { $_ -replace '\s*\[.*$', '' } | Sort-Object -Unique)
     Get-LastLines $(if ($errors) { $errors -join "`n" } else { $Result.Text })
@@ -100,7 +104,10 @@ foreach ($name in $consumers) {
     $swap = Join-Path $OutDir "swap/$name"
     Copy-Item $v1Out[$name] $swap -Recurse
     Copy-Item $newDll (Join-Path $swap 'Payments.dll') -Force
-    Get-ChildItem $newOut -Filter *.dll | Where-Object { -not (Test-Path (Join-Path $swap $_.Name)) } | Copy-Item -Destination $swap
+    foreach ($dll in Get-ChildItem $newOut -Filter *.dll) {
+        $old = Join-Path $swap $dll.Name
+        if (-not (Test-Path $old) -or (Get-AssemblyVersion $dll.FullName) -gt (Get-AssemblyVersion $old)) { Copy-Item $dll.FullName $old -Force }
+    }
     # The host loads only the assemblies that deps.json lists, so a new dependency of Payments needs the app folder probe.
     Remove-Item (Join-Path $swap "$name.deps.json") -Force
     $run = Invoke-Capture dotnet @("$name.dll") -WorkingDirectory $swap

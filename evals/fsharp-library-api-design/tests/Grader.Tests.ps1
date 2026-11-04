@@ -143,6 +143,9 @@ try {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) '    member _.ChargeAll(requests: seq<ChargeRequest>) : seq<Receipt> = requests |> Seq.map charge'
         }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
+    $pinCore = { param($ws, $version) Edit-File (Join-Path $ws 'Payments/Payments.fsproj') '<Compile Include="Payments.fs" />' "<Compile Include=`"Payments.fs`" /><PackageReference Update=`"FSharp.Core`" Version=`"$version`" />" }
+    Assert-Checks 'newer FSharp.Core' (Invoke-Case 'newer-core' -Good -Edit { param($ws) & $pinCore $ws '11.0.101-rc3.26522.148' }) @($T, $T, $T, $F, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
+    Assert-Checks 'older FSharp.Core' (Invoke-Case 'older-core' -Good -Edit { param($ws) & $pinCore $ws '6.0.7' }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
 } finally {
     Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
 }
