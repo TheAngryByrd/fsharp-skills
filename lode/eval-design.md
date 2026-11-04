@@ -74,6 +74,25 @@ Results with 2 runs per mode (full tables on issue #14). Codex ran the default m
 - opencode used the free models `opencode/deepseek-v4.1-flash-free` and `opencode/glm-5.3-flash-free`. Three runs with the skill finished the task and passed every check. Every other free-model run gave no result. The shared OpenCode free quota ran out (`Free usage limit reached`), and `opencode run` waits without output until the runner stops it at 30 minutes. The runner then counts a with-skill run as not loaded and a baseline run as a failure, so a free-model baseline row of 0% is a quota stall, not a model result. Check the transcript size and the opencode log before you report such a row.
 The `validated-type` question names the type that the binder fills, not the `[<CLIMutable>]` attribute. A `[<CLIMutable>]` record that only a validate function fills counts as `yes`.
 
+### Performance grader
+
+The `sensor-report` grader copies the original `Telemetry.Tests` over the workspace copy and builds a bench project against the agent's `Telemetry`. The bench binds `Report.summarize` and `Report.render` to their original types, so a changed signature fails the bench build.
+The bench compiles the original code as `Golden` and a reference solution as `Fast`. It compares the agent's output with `Golden` on generated inputs and on the production-size input, under `de-DE`. Some generated inputs have infinite values and timestamps out of order. For a mismatch, a shrinker removes chunks of the readings while the mismatch stays, and the evidence shows the smallest input that it found in 30 seconds. The shrinker runs in the same process, so for agent code with state, the smallest input can depend on earlier calls.
+It then measures the agent and `Fast` in the same process with tiered compilation off. Allocation limits are 2 x the reference + 64 KB, from one warm call with `GC.GetTotalAllocatedBytes(true)`, so allocation on other threads counts. The count is exact, so allocation is the main measure. Time limits are 3 x the reference median + 1 ms. The calls alternate in order, so load from other processes affects both. Every agent call of the measurement (warm-up, allocation, and timed calls) must give the `Golden` result. The bench checks each result after the measured region, so a cache that returns stale or intermittent data fails both checks.
+A non-zero exit code, a bench that runs longer than 900 seconds, and output that stays open 30 seconds after the exit fail every bench check, whatever lines the output holds. Each check that the bench does not report fails, unless the output check of the same function failed. An agent's code can print `PASS` lines, so a duplicate result line fails, and a performance result counts only when the output check of its function passed.
+Float comparisons use a relative tolerance only when both values are finite. An infinite or NaN value must match exactly.
+A bench detail must stay on one line. `ConvertFrom-ProbeOutput` reads the check name up to ` [`, and a `%A` record in the detail broke the name and dropped the check.
+A single string key does not measure the skill: Claude Sonnet and Codex without the skill write a `Dictionary` accumulator for it. The composite `(Site, Sensor)` key and the `Map` of offsets in the signature add F# costs that a careful agent can miss. A reference tuple key and `Map.tryFind` for each reading allocate on each reading. A struct tuple `sortBy` key boxes on each comparison.
+`tests/Grader.Tests.ps1` grades a good result, the original input, an idiomatic pipeline, and one defect for each grader rule: culture format, culture sort, a tuple key, `Map.tryFind` on the offsets, a throw or a wrong result only at production size, a finite mean for an infinite sum, a stale result on repeated calls, a wrong result on the allocation call or on every sixth call, a throw or an exit during measurement, forged `PASS` lines with and without an exit, a child process that holds the output open, a changed signature, and a missing project.
+
+```mermaid
+flowchart LR
+    Tests[Restore original tests] --> Bench[Bench builds against public signatures]
+    Bench --> Golden[Compare with Golden under de-DE]
+    Golden --> Measure[Measure agent and Fast in one process]
+    Measure --> Limits[2 x bytes + 64 KB, 3 x median + 1 ms]
+```
+
 ```mermaid
 flowchart LR
     Task[Task depends on a skill fact] --> Agent[Agent with and without skill]

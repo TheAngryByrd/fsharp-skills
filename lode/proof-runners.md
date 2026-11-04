@@ -73,6 +73,15 @@ The runner checks each outcome in `Proofs.fsx` and fails on a mismatch. It also 
 
 The idiom review runner checks that each before form in `Idioms.fsx` gives the same result as its after form, and that `static member X = expr` runs `expr` on each access.
 
+## Performance types
+
+The `fsharp-performance-types` runner runs `Perf.fsx` with `dotnet fsi --optimize+`. A Debug compile keeps tuples and closures that the optimizer removes, so the allocation counts need `--optimize+`.
+Each check measures a claim with `GC.GetAllocatedBytesForCurrentThread()` around a warm call, a run counter, or a time ratio. The time checks compare a quadratic form with a linear form, so the ratio stays large on a loaded machine.
+
+```fsharp
+check "An option result allocates each Some; a voption result allocates nothing" (optionBytes = 24L * int64 (n / 2) && voptionBytes = 0L) ...
+```
+
 ## Verify API
 
 The `fsharp-verify-api` runner lists Expecto 10 and 11, `FSharp.Core`, and extension members through `scripts/show-api.ps1`. It fails when an expected member is missing or a removed member is present.

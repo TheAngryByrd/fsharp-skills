@@ -251,6 +251,7 @@ pwsh ./evals/tests/Rubric.Tests.ps1
 | `fsharp-verify-api` | `order-props` | FsCheck 3.4.0 generators and a property check in an `.fsx` script. FsCheck 3 moved the F# API to `FsCheck.FSharp` and changed `Gen.sample` and `Config`. A grader probe samples the generators, checks the constraints, counts the property tests, and checks that a wrong total throws. The `#r` line must keep version 3.4.0. |
 | `fsharp-signature-files` | `minimal-surface` | Signature files for a three-file library. The prompt names each requirement. `Sku.fs`, `Stock.fs`, and `Pricing.fs` must each have their `.fsi` directly before them, with no FS3888 or FS0050 warning. The grader restores the original Shop and tests: Shop must print the same report, and the tests must pass. The normalized public surface must equal an expected list, so a test-only helper must be `internal` with `InternalsVisibleTo`. The XML file must keep each public doc comment. Probe consumers must fail to build a `Sku` record, a `Quantity` case, or an unqualified `StockLevel` case, and to call the test-only helper. |
 | `fsharp-signature-files` | `add-signatures` | The same input and grader. The prompt asks only for signature files that encapsulate the library, so the hidden representations, the `internal` test-only helper, and the doc comments must come from the skill. |
+| `fsharp-performance-types` | `sensor-report` | A rewrite of a slow F# summary over 200,000 readings, keyed by site and sensor, with a `Map` of offsets in the signature. The grader restores the original tests, builds a bench against the public signatures, and compares the output with the original code on generated inputs under `de-DE`. It also compares the output at production size. It then measures the allocated bytes and the median run time of one call of `summarize` and `render` against a reference solution in the same process. A crash, a timeout, or a missing result fails the check. |
 
 Test the `startup-settings` grader against a known good result, the input with an `Options.Create` test, `ValidateOnStart` with no startup validator call, an app that prints only the first error, a `decimal` `FreeShippingOver` field, a test that fails when `appsettings.json` exists, a parser that rejects `FreeShippingOver` `0`, a parser that accepts `MaxWeightKg` `0`, a region check with no length rule, a region check that requires only a non-empty code, a `Carrier` check that rejects only `""`, and a parser that skips the `RatePerKg` and `FreeShippingOver` range rules:
 
@@ -268,4 +269,10 @@ Test both `fsharp-verify-api` graders against a known good result, the stub, old
 
 ```powershell
 pwsh ./evals/fsharp-verify-api/tests/Grader.Tests.ps1
+```
+
+Test the `fsharp-performance-types` grader against a known good result, the original input, an idiomatic pipeline, and one defect for each grader rule (culture format, culture sort, tuple key, `Map.tryFind` for each reading, wrong or failed output only at production size, a finite mean for an infinite sum, a stale or intermittent result during measurement, a crash or an exit during measurement, forged `PASS` lines, a child process that holds the output open, a changed signature, and a missing project):
+
+```powershell
+pwsh ./evals/fsharp-performance-types/tests/Grader.Tests.ps1
 ```

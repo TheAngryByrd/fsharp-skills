@@ -1,0 +1,135 @@
+#Requires -Version 7.4
+param(
+    [Parameter(Mandatory)][string]$Workspace,
+    [Parameter(Mandatory)][string]$OutDir,
+    [switch]$SkipNative
+)
+$ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot '../../lib/Grading.psm1') -Force
+
+$benchChecks = @(
+    'summarize gives the same stats as the original code'
+    'render gives the same text as the original code under the de-DE culture'
+    'summarize of 200,000 readings allocates no more than 2 x the reference + 64 KB'
+    'summarize of 200,000 readings median run time is no more than 3 x the reference + 1 ms'
+    'render of 1,000 sensors allocates no more than 2 x the reference + 64 KB'
+    'render of 1,000 sensors median run time is no more than 3 x the reference + 1 ms'
+)
+$checks = @()
+$copy = Join-Path $OutDir 'ws'
+Copy-Workspace $Workspace $copy
+$globalJson = Get-Content -Raw (Join-Path $PSScriptRoot 'global.json')
+if (-not (Test-Path (Join-Path $copy 'global.json'))) { Set-Content (Join-Path $copy 'global.json') $globalJson }
+
+$project = Join-Path $copy 'Telemetry/Telemetry.fsproj'
+if (-not (Test-Path $project)) {
+    $checks += New-Check 'Telemetry builds' $false 'Telemetry/Telemetry.fsproj missing'
+    $checks += New-Check 'The original Telemetry.Tests build and pass' $null 'skipped: Telemetry is missing'
+    $checks += New-Check 'The public signatures did not change (the grader bench builds against them)' $null 'skipped: Telemetry is missing'
+    $checks += $benchChecks | ForEach-Object { New-Check $_ $null 'skipped: Telemetry is missing' }
+    Write-Checks (Join-Path $OutDir 'grading.json') $checks
+    return
+}
+
+$tests = Join-Path $copy 'Telemetry.Tests'
+if (Test-Path $tests) { Remove-Item -Recurse -Force $tests }
+Copy-Item (Join-Path $PSScriptRoot '../inputs/Telemetry.Tests') $tests -Recurse
+
+$build = Invoke-Capture dotnet @('build', $project, '-c', 'Release') -WorkingDirectory (Split-Path $project)
+$built = $build.ExitCode -eq 0
+$checks += New-Check 'Telemetry builds' $built $(if (-not $built) { Get-LastLines (($build.Lines | Where-Object { $_ -match ' error ' } | Sort-Object -Unique) -join "`n") })
+
+$test = Invoke-Capture dotnet @('run', '-c', 'Release') -WorkingDirectory $tests
+$passCount = @($test.Lines | Where-Object { $_ -match '^PASS ' }).Count
+$checks += New-Check 'The original Telemetry.Tests build and pass' $(if ($built) { $test.ExitCode -eq 0 -and $passCount -eq 8 } else { $null }) (Get-LastLines $test.Text 8)
+
+$bench = Join-Path $OutDir 'bench'
+New-Item -ItemType Directory -Force -Path $bench | Out-Null
+Copy-Item (Join-Path $PSScriptRoot 'Bench/*.fs') $bench
+Set-Content (Join-Path $bench 'global.json') $globalJson
+Set-Content (Join-Path $bench 'Bench.fsproj') @"
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <TieredCompilation>false</TieredCompilation>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Original.fs" />
+    <Compile Include="Reference.fs" />
+    <Compile Include="Bench.fs" />
+    <ProjectReference Include="$((Resolve-Path $project).Path)" />
+  </ItemGroup>
+</Project>
+"@
+
+$benchBuild = if ($built) { Invoke-Capture dotnet @('build', 'Bench.fsproj', '-c', 'Release', '-o', 'out') -WorkingDirectory $bench } else { $null }
+$benchBuilt = $benchBuild -and $benchBuild.ExitCode -eq 0
+$benchErrors = if ($benchBuild) { @($benchBuild.Lines | Where-Object { $_ -match 'error FS' } | ForEach-Object { $_ -replace '\s*\[.*$', '' } | Sort-Object -Unique) -join "`n" } else { '' }
+$checks += New-Check 'The public signatures did not change (the grader bench builds against them)' $(if ($built) { $benchBuilt } else { $null }) $benchErrors
+
+function Invoke-Bench([string]$Directory, [int]$TimeoutSeconds) {
+    $psi = [System.Diagnostics.ProcessStartInfo]::new('dotnet', 'out/Bench.dll')
+    $psi.WorkingDirectory = $Directory
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.UseShellExecute = $false
+    $process = [System.Diagnostics.Process]::Start($psi)
+    $stdout = $process.StandardOutput.ReadToEndAsync()
+    $stderr = $process.StandardError.ReadToEndAsync()
+    $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
+    if ($timedOut) { $process.Kill($true); $process.WaitForExit() }
+    $streamsClosed = [System.Threading.Tasks.Task]::WaitAll([System.Threading.Tasks.Task[]]@($stdout, $stderr), 30000)
+    $text = if ($streamsClosed) { $stdout.Result + $stderr.Result } else { '' }
+    [pscustomobject]@{ TimedOut = $timedOut; StreamsClosed = $streamsClosed; ExitCode = $(if ($timedOut) { $null } else { $process.ExitCode }); Lines = @($text -split '\r?\n'); Text = $text }
+}
+
+$results = @()
+$problem = $null
+$run = $null
+if ($benchBuilt) {
+    $run = Invoke-Bench $bench 900
+    $results = @(ConvertFrom-ProbeOutput $run.Lines)
+    $evidence = @{}
+    foreach ($line in $run.Lines) {
+        if ($line -match '^(PASS|FAIL) (.*) \[(.*)\]$') { $evidence[$Matches[2]] = $Matches[3] }
+    }
+    foreach ($r in $results) { if ($evidence.ContainsKey($r.text)) { $r.evidence = $evidence[$r.text] } }
+    if ($run.TimedOut) { $problem = 'the bench did not finish in 900 seconds' }
+    elseif (-not $run.StreamsClosed) { $problem = 'the bench output did not close 30 seconds after the bench exited' }
+    elseif ($run.ExitCode -ne 0) { $problem = "the bench exited with code $($run.ExitCode)" }
+}
+$correctnessFor = @{
+    'summarize' = 'summarize gives the same stats as the original code'
+    'render' = 'render gives the same text as the original code under the de-DE culture'
+}
+foreach ($name in $benchChecks) {
+    $found = @($results | Where-Object text -EQ $name)
+    if (-not $benchBuilt) {
+        $checks += New-Check $name $null 'skipped: the grader bench did not build'
+        continue
+    }
+    if ($problem) {
+        $checks += New-Check $name $false "${problem}`n$(Get-LastLines $run.Text 6)"
+        continue
+    }
+    if ($found.Count -gt 1) {
+        $checks += New-Check $name $false "the bench output has $($found.Count) result lines for this check"
+        continue
+    }
+    $function = ($name -split ' ')[0]
+    $gate = @($results | Where-Object text -EQ $correctnessFor[$function])
+    if ($found.Count -eq 1 -and $correctnessFor.ContainsKey($function) -and $name -ne $correctnessFor[$function] -and -not ($gate.Count -eq 1 -and $gate[0].passed -eq $true)) {
+        $checks += New-Check $name $false "the bench output has a result line for this check, but the $function output check did not pass"
+    } elseif ($found.Count -eq 1) {
+        $checks += $found[0]
+    } elseif ($gate.Count -eq 1 -and $gate[0].passed -eq $false) {
+        $checks += New-Check $name $null "skipped: the $function output differs from the original code"
+    } else {
+        $checks += New-Check $name $false "the bench did not report this check`n$(Get-LastLines $run.Text 6)"
+    }
+}
+
+Write-Checks (Join-Path $OutDir 'grading.json') $checks

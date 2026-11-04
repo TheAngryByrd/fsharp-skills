@@ -40,7 +40,7 @@ flowchart TD
 | 4 | Speculative code, missed reuse, comment noise | strong (top category) | — | spec gaps: ignored parameters | No | None (not F#-specific) |
 | 5 | Weak or false-positive tests | thin | bool as test body, xUnit `Assert.Equal` overloads | ~11 sessions | No | None (`dotnet-test-audit` covers it) |
 | 6 | .NET 10 nullness (FS3261) | — | 20 hits (`Uri.TryCreate`, `JsonElement.GetString`) | 435 hits in 37 sessions; 61% in 3 sessions | Yes (warning) | `fsharp-nullness-interop` |
-| 7 | Idiomatic shape: tuples over records, if/else or `mutable` over `match`, multi-pass collections | strong | — | 5 user corrections | No | `fsharp-idiom-review` |
+| 7 | Idiomatic shape: tuples over records, if/else or `mutable` over `match`, multi-pass collections | strong | — | 5 user corrections | No | `fsharp-idiom-review`, `fsharp-performance-types` |
 | 8 | Resource lifetime, disposal, subscription ownership | thin | — | ~34 sessions (reviews + FS0524) | No | None yet (one source) |
 | 9 | New BCL overloads break inference (FS0041, FS0001) | — | `TimeSpan.FromSeconds` | FS0041 (91 sessions) | Yes | Part of `fsharp-nullness-interop` |
 | 10 | Offside / indentation (FS0010, FS0058) | — | 23 hits | 112 sessions, spread evenly | Yes, fixed in one turn | None |
@@ -58,6 +58,7 @@ No source showed Fantomas, SRTP/IWSAM, `.fsproj` compile-order, or logging-forma
 | `fsharp-verify-api` | 3, 12 | Reported: many failed builds before the code compiles. |
 | `fsharp-nullness-interop` | 6, 9 | Reported: warnings and inference errors on new BCL APIs. |
 | `fsharp-idiom-review` | 7 | Silent: reviewers ask for a different shape. |
+| `fsharp-performance-types` | 7 (collection efficiency) | Silent: extra passes and allocation for each element compile and pass tests. |
 
 `fsharp-signature-files` has no area in this table. It comes from a maintainer request, not from failure data. The sources show almost no signature-file failures, and their FS0034 hits came from the excluded `build-times` repository. Its eval must show its value.
 

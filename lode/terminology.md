@@ -24,6 +24,7 @@
 - Probe consumer - A small project that a grader builds against the agent's library. A control probe must build; a must-fail probe must not compile.
 - Settings DTO - A `[<CLIMutable>]` record that the configuration binder fills. Only the composition root reads it. A parse function turns it into the validated settings type.
 - Composition root - The startup code that reads configuration, builds the container, and builds the env. It is the only code that can use `IOptions<T>` or `IConfiguration`.
+- Reference solution - A fast implementation that a grader owns. A performance check runs it in the same process as the agent's code and sets its allocation and time limits from it.
 - Silent data loss - Native exe output that has less content than the JIT output, with no exception.
 
 Use these terms consistently in the Lode, `evals/README.md`, and skill documentation. A failure alone does not prove the expected compiler constraint.
