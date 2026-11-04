@@ -1,28 +1,44 @@
 using Payments;
 
-var gateway = new CountingGateway();
-var client = new PaymentClient(gateway);
-var request = new ChargeRequest(10.00m, "USD", PaymentMethod.NewCard("4242"));
+var requests = new[] { 1.00m, 2.00m, 3.00m }
+    .Select(amount => new ChargeRequest(amount, "USD", PaymentMethod.NewCard("4242")))
+    .ToArray();
 
-var fromArray = client.ChargeAll(new[] { request, request, request }).ToList();
-Report("ChargeAll charges each request of a C# array", gateway.Count == 3 && fromArray.Count == 3, $"gateway calls {gateway.Count}");
+Check("ChargeAll charges each request of a C# array once, in order, when it is called", client => client.ChargeAll(requests.ToArray()));
+Check("ChargeAll charges each request of a List<ChargeRequest> once, in order, when it is called", client => client.ChargeAll(new List<ChargeRequest>(requests)));
+Check("ChargeAll charges each request of an IEnumerable<ChargeRequest> iterator once, in order, when it is called", client => client.ChargeAll(Iterate(requests)));
 
-var fromList = client.ChargeAll(new List<ChargeRequest> { request, request }).ToList();
-Report("ChargeAll charges each request of a List<ChargeRequest>", gateway.Count == 5 && fromList.Count == 2, $"gateway calls {gateway.Count}");
-
-var fromIterator = client.ChargeAll(Repeat(request, 4)).ToList();
-Report("ChargeAll charges each request of an IEnumerable<ChargeRequest> iterator", gateway.Count == 9 && fromIterator.Count == 4, $"gateway calls {gateway.Count}");
-
-static IEnumerable<ChargeRequest> Repeat(ChargeRequest request, int count)
+void Check(string name, Func<PaymentClient, IEnumerable<Receipt>> chargeAll)
 {
-    for (var i = 0; i < count; i++) yield return request;
+    var gateway = new RecordingGateway();
+    var receipts = chargeAll(new PaymentClient(gateway));
+    var callsBeforeRead = gateway.Amounts.Count;
+    var first = receipts.Select(r => r.Amount).ToList();
+    var second = receipts.Select(r => r.Amount).ToList();
+    var expected = requests.Select(r => r.Amount).ToList();
+    var passed = callsBeforeRead == expected.Count
+        && gateway.Amounts.SequenceEqual(expected)
+        && first.SequenceEqual(expected)
+        && second.SequenceEqual(expected);
+    Report(name, passed,
+        $"gateway calls before the result is read {callsBeforeRead}, gateway amounts [{string.Join(", ", gateway.Amounts)}], receipt amounts [{string.Join(", ", first)}] then [{string.Join(", ", second)}]");
+}
+
+static IEnumerable<ChargeRequest> Iterate(IEnumerable<ChargeRequest> source)
+{
+    foreach (var request in source) yield return request;
 }
 
 static void Report(string name, bool passed, string evidence) =>
     Console.WriteLine(passed ? $"PASS {name}" : $"FAIL {name} [{evidence}]");
 
-sealed class CountingGateway : IPaymentGateway
+sealed class RecordingGateway : IPaymentGateway
 {
-    public int Count { get; private set; }
-    public string Submit(ChargeRequest request, decimal total) => $"id{++Count}";
+    public List<decimal> Amounts { get; } = new();
+
+    public string Submit(ChargeRequest request, decimal total)
+    {
+        Amounts.Add(request.Amount);
+        return $"id{Amounts.Count}";
+    }
 }

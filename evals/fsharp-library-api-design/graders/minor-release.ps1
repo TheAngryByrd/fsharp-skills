@@ -27,9 +27,9 @@ $probes = [ordered]@{
     AnySequence = [pscustomobject]@{
         Build = 'A C# probe that passes an array, a List<ChargeRequest>, and an iterator to ChargeAll builds against the new Payments'
         Checks = @(
-            'ChargeAll charges each request of a C# array'
-            'ChargeAll charges each request of a List<ChargeRequest>'
-            'ChargeAll charges each request of an IEnumerable<ChargeRequest> iterator')
+            'ChargeAll charges each request of a C# array once, in order, when it is called'
+            'ChargeAll charges each request of a List<ChargeRequest> once, in order, when it is called'
+            'ChargeAll charges each request of an IEnumerable<ChargeRequest> iterator once, in order, when it is called')
     }
 }
 
@@ -123,7 +123,7 @@ if ($built) {
     if ($beforeExit -ne 0 -or $afterExit -ne 0) {
         foreach ($text in $surfaceChecks) { $checks += New-Check $text $null "skipped: public-surface.ps1 failed`n$(Get-LastLines (($before + $after) -join "`n"))" }
     } else {
-        $removed = @($before | Where-Object { $after -cnotcontains $_ })
+        $removed = @($before | Where-Object { $after -cnotcontains $_ -and -not ($_ -cmatch ' with get$' -and $after -ccontains "$_, set") })
         $checks += New-Check $surfaceChecks[0] ($removed.Count -eq 0) (($removed | ForEach-Object { "removed: $_" }) -join "`n")
         $added = @($after | Where-Object { $before -cnotcontains $_ })
         $anyFSharp = 'Microsoft\.FSharp\.(Core\.FSharp(Option|ValueOption|Func)|Collections\.FSharp(List|Map|Set)|Control\.FSharpAsync)'
@@ -131,6 +131,9 @@ if ($built) {
         $fsharpOnly = @($added | Where-Object {
                 if ($_ -match '\| [^(]*\((?<params>.*)\) : (?<result>.*)$') { $Matches.params -match $anyFSharp -or $Matches.result -match $opaqueResult }
                 elseif ($_ -match '\| new\((?<params>.*)\)$') { $Matches.params -match $anyFSharp }
+                elseif ($_ -match '\| [^\[:]*\[(?<params>.*)\] : (?<type>.*) with (?<access>[\w, ]+)$') {
+                    $Matches.params -match $anyFSharp -or $Matches.type -match $(if ($Matches.access -match 'set') { $anyFSharp } else { $opaqueResult })
+                }
                 elseif ($_ -match '\| [^:]* : (?<type>.*) with (?<access>[\w, ]+)$') { $Matches.type -match $(if ($Matches.access -match 'set') { $anyFSharp } else { $opaqueResult }) }
                 elseif ($_ -match '\| [^:]* : (?<result>.*)$') { $Matches.result -match $opaqueResult }
                 else { $false }

@@ -56,9 +56,20 @@ let inline double (x: float) = x * 2.0        // 1.0.0
 let inline double (x: float) = x * 2.0 + 1.0  // changed
 ```
 
-The compiler copies an `inline` body into each caller. An old binary keeps the 1.0.0 body and prints the old result, with no error. Only a rebuilt consumer gets the new body.
+The compiler copies an `inline` body into each caller. An old binary keeps the 1.0.0 body and prints the old result, with no error. Only a rebuilt consumer gets the new body. `--nooptimizationdata` does not change this (InlineBodyChangeNoOptimizationData).
 
 Safe alternative: do not make a public function `inline` unless it needs statically resolved type parameters. When you fix an `inline` body, tell consumers to build again.
+
+## SmallFunctionBodyChange
+
+```fsharp
+let half (x: float) = x / 2.0        // 1.0.0
+let half (x: float) = x / 2.0 + 1.0  // changed
+```
+
+`half` is not `inline`, but the F# compiler writes optimization data into the library DLL. An F# consumer that is built in Release copies small function bodies from that data. The old F# binary keeps the 1.0.0 body and prints the old result, with no error. The old C# binary calls the method and gets the new body.
+
+Safe alternative: build the library with `--nooptimizationdata` from its first release. Then an old F# binary gets the new body (SmallFunctionBodyChangeNoOptimizationData). The flag must be in the version that the consumer compiled against. It also stops cross-assembly inlining, so consumer code can be slower. Without the flag, tell F# consumers to build again after a body fix. The compiler decides which bodies to copy. In a test with SDK 10.0.403, it copied `half` but not `area` (a `match`), `count` (a `List.length` call), or `scale` (a record construction). Do not depend on this limit.
 
 ## GeneralizeParameter and WidenParameterType
 
@@ -135,7 +146,18 @@ let count (store: IStore) =
 
 `module Geometry` renamed to `module Geo` gives FS0039 in F#, CS0103 in C#, `TypeLoadException` in old binaries, and CP0001 in package validation.
 
-Safe alternative: add the new module and keep the old one. Mark the old one `[<Obsolete>]`.
+Safe alternative: add the new module and keep the old one. Mark the old one `[<Obsolete>]` in the next major version.
+
+## CompiledNameOnExistingFunction
+
+```fsharp
+[<CompiledName("Area")>] // new
+let area shape = ...
+```
+
+F# callers do not see a change. The compiled method is now `Area`, so C# fails with CS0117, old binaries throw `MissingMethodException`, and package validation reports CP0002.
+
+Safe alternative: use `CompiledName` only on a new function.
 
 ## ObsoleteFunction
 
@@ -145,7 +167,7 @@ let scale (factor: float) (point: Point) = ...
 let scaleBy (factor: float) (point: Point) = ...
 ```
 
-This is the safe way to retire a function. F# callers get warning FS0044, and C# callers get warning CS0618. A consumer with `TreatWarningsAsErrors` fails, so name the change in the release notes. Old binaries still run.
+F# callers get warning FS0044, and C# callers get warning CS0618. A consumer with `TreatWarningsAsErrors` fails, so a new `Obsolete` is a source break. Old binaries still run. To retire a function, add the new function in a minor version. Mark the old one `Obsolete` in the next major version, and name it in the release notes.
 
 ## AddOverload
 
@@ -156,4 +178,6 @@ member _.Send(message: string) : string = ...
 member this.Send(message: string, urgent: bool) : string = ...
 ```
 
-No consumer breaks, and package validation reports nothing. Use this pattern to add a parameter to a type member or to accept a wider parameter type.
+Calls do not break, old binaries still run, and package validation reports nothing. Use this pattern to add a parameter to a type member or to accept a wider parameter type.
+
+One C# shape breaks: a method group with no delegate type. `var total = client.Total;` builds against 1.0.0 and fails with CS8917 against 1.1.0. The F# method group `let total = client.Total` still builds. Name each new overload in the release notes. The C# consumer of the runner stops at CS8917, so the runner does not prove a C# call to the new overload. The C# probes of the `minor-release` eval grader call overloads.

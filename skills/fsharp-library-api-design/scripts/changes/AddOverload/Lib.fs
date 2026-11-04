@@ -1,5 +1,5 @@
 // expect-source-fs: ok
-// expect-source-cs: ok
+// expect-source-cs: CS8917
 // expect-binary-fs: same
 // expect-binary-cs: same
 // expect-package-validation: ok
@@ -24,6 +24,8 @@ module Geometry =
     let scale (factor: float) (point: Point) = { X = point.X * factor; Y = point.Y * factor }
 
     let inline double (x: float) = x * 2.0
+
+    let half (x: float) = x / 2.0
 
     let count (items: int list) = List.length items
 

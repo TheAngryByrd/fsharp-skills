@@ -22,9 +22,9 @@ $names = @(
     'A charge with a new key calls the gateway'
     'Charges without a key call the gateway each time'
     'A C# probe that passes an array, a List<ChargeRequest>, and an iterator to ChargeAll builds against the new Payments'
-    'ChargeAll charges each request of a C# array'
-    'ChargeAll charges each request of a List<ChargeRequest>'
-    'ChargeAll charges each request of an IEnumerable<ChargeRequest> iterator'
+    'ChargeAll charges each request of a C# array once, in order, when it is called'
+    'ChargeAll charges each request of a List<ChargeRequest> once, in order, when it is called'
+    'ChargeAll charges each request of an IEnumerable<ChargeRequest> iterator once, in order, when it is called'
 )
 
 function Edit-File([string]$Path, [string]$Pattern, [string]$Replacement) {
@@ -142,6 +142,27 @@ try {
     Assert-Checks 'lazy seq overload' (Invoke-Case 'lazy-seq' -Good -Edit {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) '    member _.ChargeAll(requests: seq<ChargeRequest>) : seq<Receipt> = requests |> Seq.map charge'
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $F, $F, $F)
+    Assert-Checks 'seq overload that repeats the first request' (Invoke-Case 'first-request' -Good -Edit {
+            param($ws)
+            Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) '    member _.ChargeAll(requests: seq<ChargeRequest>) : Receipt list = let all = List.ofSeq requests in all |> List.map (fun _ -> charge all.Head)'
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $F, $F, $F)
+    Assert-Checks 'indexer that returns option' (Invoke-Case 'option-indexer' -Good -Edit {
+            param($ws)
+            Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) "$seqOverload`n`n    member _.Item with get (idempotencyKey: string) : Receipt option = None"
+        }) @($T, $T, $T, $T, $T, $T, $T, $T, $F, $T, $T, $T, $T, $T, $T, $T, $T)
+    $renamed = Invoke-Case 'renamed-field-indexer' -Good -Edit {
+            param($ws)
+            $file = Join-Path $ws 'Payments/Payments.fs'
+            Edit-File $file '\| Card of last4: string' '| Card of lastFour: string'
+            Edit-File $file ([regex]::Escape($seqOverload)) "$seqOverload`n`n    member _.Item with get (idempotencyKey: string) : Receipt = receipts[idempotencyKey]"
+        }
+    Assert-Checks 'renamed union field and an indexer that returns Receipt' $renamed @($T, $T, $T, $T, $T, $F, $T, $F, $T, $T, $T, $T, $T, $T, $T, $T, $T)
+    $removedEvidence = ($renamed | Where-Object text -eq $names[7]).evidence
+    if ($removedEvidence -notmatch 'Card \| last4 : System\.String with get') { $failures.Add("renamed union field: the removed last4 getter is not reported.`n$removedEvidence") }
+    Assert-Checks 'CLIMutable receipt' (Invoke-Case 'climutable-receipt' -Good -Edit {
+            param($ws)
+            Edit-File (Join-Path $ws 'Payments/Payments.fs') '/// The result of a successful charge\.' "/// The result of a successful charge.`n[<CLIMutable>]"
         }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)
     $pinCore = { param($ws, $version) Edit-File (Join-Path $ws 'Payments/Payments.fsproj') '<Compile Include="Payments.fs" />' "<Compile Include=`"Payments.fs`" /><PackageReference Update=`"FSharp.Core`" Version=`"$version`" />" }
     Assert-Checks 'newer FSharp.Core' (Invoke-Case 'newer-core' -Good -Edit { param($ws) & $pinCore $ws '11.0.101-rc3.26522.148' }) @($T, $T, $T, $F, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T)

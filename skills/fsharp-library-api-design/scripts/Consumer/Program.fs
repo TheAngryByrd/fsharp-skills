@@ -11,5 +11,6 @@ let name shape =
 
 let doubled = List.map (Geometry.scale 2.0) [ { X = 1.0; Y = 2.0 } ]
 printfn "%s %g" (name (Circle 1.0)) (Geometry.area (Square 3.0))
-printfn "%g %g" doubled.Head.X (Geometry.double 2.0)
-printfn "%d %s %d" (Geometry.count [ 1; 2; 3 ]) (Client(Store()).Send "hi") (Client(Store()).Total [ 4; 5 ])
+printfn "%g %g %g" doubled.Head.X (Geometry.double 2.0) (Geometry.half 3.0)
+let total = Client(Store()).Total
+printfn "%d %s %d" (Geometry.count [ 1; 2; 3 ]) (Client(Store()).Send "hi") (total [ 4; 5 ])

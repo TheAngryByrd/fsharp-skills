@@ -25,6 +25,8 @@ module Geometry =
 
     let inline double (x: float) = x * 2.0
 
+    let half (x: float) = x / 2.0
+
     let count (items: 'T list) = List.length items
 
 type Client(store: IStore) =

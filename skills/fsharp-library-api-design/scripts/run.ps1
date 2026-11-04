@@ -27,10 +27,11 @@ function Get-Codes([string]$Text, [string]$Pattern) {
     @([regex]::Matches($Text, $Pattern) | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
 }
 
-function New-Lib([string]$Name, [string]$Source, [string]$Version) {
+function New-Lib([string]$Name, [string]$Source, [string]$Version, [string]$Flags) {
     $dir = Join-Path $work "$Name/Lib"
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    (Get-Content -Raw (Join-Path $PSScriptRoot 'V1/Lib.fsproj')).Replace('<Version>1.0.0</Version>', "<Version>$Version</Version>") |
+    $properties = "<Version>$Version</Version>" + $(if ($Flags) { "<OtherFlags>`$(OtherFlags) $Flags</OtherFlags>" })
+    (Get-Content -Raw (Join-Path $PSScriptRoot 'V1/Lib.fsproj')).Replace('<Version>1.0.0</Version>', $properties) |
         Set-Content (Join-Path $dir 'Lib.fsproj')
     Copy-Item $Source (Join-Path $dir 'Lib.fs')
     Join-Path $dir 'Lib.fsproj'
@@ -52,22 +53,33 @@ function Invoke-Program([string]$Directory, [string]$Dll) {
 
 $consumers = [ordered]@{ fs = 'Consumer'; cs = 'ConsumerCs' }
 $codePattern = @{ fs = 'error (FS\d+)'; cs = 'error (CS\d+)' }
+$baselines = @{}
+
+function Get-Baseline([string]$Flags) {
+    if ($baselines.ContainsKey($Flags)) { return $baselines[$Flags] }
+    $name = 'v1' + $(if ($Flags) { "-$($baselines.Count)" })
+    $env:FSHARP_API_PROOF_ROOT = Join-Path $artifacts $name
+    $project = New-Lib $name (Join-Path $PSScriptRoot 'V1/Lib.fs') '1.0.0' $Flags
+    $result = @{ Project = $project }
+    foreach ($kind in $consumers.Keys) {
+        $consumer = $consumers[$kind]
+        $dir = New-Consumer $name $consumer $project
+        $out = Join-Path $work "$name/out-$kind"
+        $b = Invoke-Dotnet $dir @('build', '-c', 'Release', '-o', $out)
+        if ($b.ExitCode -ne 0) { throw "The 1.0.0 consumer $consumer did not build:`n$($b.Text)" }
+        $run = Invoke-Program $out "$consumer.dll"
+        if ($run.ExitCode -ne 0) { throw "The 1.0.0 consumer $consumer failed:`n$($run.Output)" }
+        $result[$kind] = [pscustomobject]@{ Out = $out; Output = $run.Output }
+    }
+    $baselines[$Flags] = $result
+    $result
+}
 
 try {
-    $v1Project = New-Lib 'v1' (Join-Path $PSScriptRoot 'V1/Lib.fs') '1.0.0'
+    $v1 = Get-Baseline ''
+    $v1Project = $v1.Project
     $pack = Invoke-Dotnet (Split-Path $v1Project) @('pack', '-c', 'Release', '-o', $feed)
     if ($pack.ExitCode -ne 0) { throw "The 1.0.0 baseline package did not pack:`n$($pack.Text)" }
-    $v1 = @{}
-    foreach ($kind in $consumers.Keys) {
-        $name = $consumers[$kind]
-        $dir = New-Consumer 'v1' $name $v1Project
-        $out = Join-Path $work "v1/out-$kind"
-        $b = Invoke-Dotnet $dir @('build', '-c', 'Release', '-o', $out)
-        if ($b.ExitCode -ne 0) { throw "The 1.0.0 consumer $name did not build:`n$($b.Text)" }
-        $run = Invoke-Program $out "$name.dll"
-        if ($run.ExitCode -ne 0) { throw "The 1.0.0 consumer $name failed:`n$($run.Output)" }
-        $v1[$kind] = [pscustomobject]@{ Out = $out; Output = $run.Output }
-    }
 
     Write-Output ('{0,-28} {1,-8} {2,-8} {3,-26} {4,-26} {5}' -f 'change', 'F# src', 'C# src', 'F# binary', 'C# binary', 'package validation')
     foreach ($case in Get-ChildItem (Join-Path $PSScriptRoot 'changes') -Directory) {
@@ -75,8 +87,10 @@ try {
         $text = Get-Content -Raw $source
         $expect = @{}
         foreach ($m in [regex]::Matches($text, '(?m)^//\s*expect-([\w-]+):\s*(.+?)\s*$')) { $expect[$m.Groups[1].Value] = $m.Groups[2].Value }
+        $flags = if ($text -match '(?m)^//\s*flags:\s*(.+?)\s*$') { $Matches[1] } else { '' }
+        $v1 = Get-Baseline $flags
         $env:FSHARP_API_PROOF_ROOT = Join-Path $artifacts $case.Name
-        $project = New-Lib $case.Name $source '1.1.0'
+        $project = New-Lib $case.Name $source '1.1.0' $flags
         $actual = [ordered]@{}
 
         $v2 = Invoke-Dotnet (Split-Path $project) @('pack', '-c', 'Release', '-o', (Join-Path $work "$($case.Name)/pkg"),
