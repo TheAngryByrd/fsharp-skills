@@ -61,6 +61,16 @@ The surface check cannot tell a member left out of the `.fsi` from a member mark
 `evals/fsharp-signature-files/tests/Grader.Tests.ps1` grades a known good result, the original input, raw `--allsigs` output, a public test-only helper, a `.fsi` after its `.fs`, docs only in the `.fs`, a missing `RequireQualifiedAccess`, a public `Sku` representation, an unlisted interface, a `private` representation with an extra `AssemblyInfo.fs` (must pass), a sealed `StockItem` class with an `internal` constructor (must pass), and a Shop that prints fixed text over a broken library.
 The `minimal-surface` prompt names each graded requirement, and Claude Sonnet passed it without the skill (12/12 checks, 5 turns). The `add-signatures` prompt asks only for signature files that encapsulate the library, so it is the task that measures the skill. With 2 runs per mode, Claude Sonnet and Codex without the skill left the test-only `roundToCents` helper public (0/2 surface checks), and Codex also dropped the doc comments (0/2). With the skill, both passed 12/12 in each run, at the cost of more turns (7 against 4, and 14 against 10.5). opencode left `roundToCents` public in both modes. The full table is on issue #10.
 
+### Settings grader
+
+The `startup-settings` grader copies the workspace once for each settings file and runs `dotnet fsi App.fsx`. It writes its own `appsettings.json` for each run: valid, no `BlockedRegions` key, bad values with missing keys, and no `Shipping` section. A run that prints `ready` counts as no startup failure, so validation at the first read fails the grader. The bad file omits `FreeShippingOver`, whose rule allows `0`, so only a `Nullable<decimal>` field or a key check reports it.
+It runs `ShippingTests.fsx` in a copy with no `appsettings.json`. The text checks remove `//` and `(* *)` comments first. `IValidateOptions` does not match the `IOptions` check.
+`evals/fsharp-env-capabilities/tests/Grader.Tests.ps1` grades a known good result, the input with an `Options.Create` test, and four edits of the good result. Each edit is a regex replacement that throws when it does not match. The edits are: no `IStartupValidator` call, only the first error printed, `FreeShippingOver` as `decimal`, and a test that fails when `appsettings.json` exists.
+The grader deletes `appsettings.json` for the test run. A `[string]` parameter turns `$null` into an empty string, so the scenario parameter has no type.
+Two rubric items ask whether the functions read a parsed type and whether they get it from the env. The prompt does not ask for an accessor, so the second item measures the skill's design, not a stated requirement.
+With 2 runs per mode, every target passed 100% with the skill. Without the skill, Claude Sonnet and opencode (`github-copilot/gpt-5.6-sol`) kept `IOptions<ShippingSettings>` in `cost`, `check`, and `quote`, and used `Options.Create` in the test (0/2). One opencode baseline run also validated at the first read, so it printed `ready` with bad settings. Codex passed every check without the skill. The full table is on issue #14.
+The first `validated-type` question gave `yes` for one opencode run whose functions read the `[<CLIMutable>]` type through `IOptions`. The reworded question gives `no`.
+
 ```mermaid
 flowchart LR
     Task[Task depends on a skill fact] --> Agent[Agent with and without skill]

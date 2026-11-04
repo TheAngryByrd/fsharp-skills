@@ -30,6 +30,7 @@ Push-Location $PSScriptRoot
 try {
 Invoke-Proof -Script 'Environment.fsx'
 Invoke-Proof -Script 'FlatEnv.fsx'
+Invoke-Proof -Script 'Settings.fsx'
 
 Invoke-Proof -Commands @'
 #load "Environment.fsx"
@@ -45,6 +46,13 @@ Invoke-Proof -Commands @'
 open FlatEnv
 logThenRead;;
 cacheThenDirect;;
+#q;;
+'@
+
+Invoke-Proof -Commands @'
+#load "Settings.fsx"
+open Settings
+notify;;
 #q;;
 '@
 

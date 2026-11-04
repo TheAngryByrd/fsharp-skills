@@ -12,6 +12,14 @@ F# 8 can report `FS0192` on the IWSAM examples. Preserve the SDK file when packa
 The examples use `FsToolkit.ErrorHandling` 5.2.0 for `result`, `validation`, and `taskResult`.
 Do not add the obsolete `FsToolkit.ErrorHandling.TaskResult` package.
 
+The environment runner also runs `Settings.fsx`, which asserts its outcomes and exits with code 1 on a mismatch. It checks configuration binder results for F# types, `Result` parsing that reports every error, and startup validation. `ValidateOnStart` with no host does not run, so the script calls `IStartupValidator.Validate()`:
+
+```fsharp
+let start (provider: IServiceProvider) =
+    provider.GetRequiredService<IStartupValidator>().Validate()
+    provider.GetRequiredService<IAppEnvironment>()
+```
+
 ## Nullness interop
 
 The nullness proof runner is project-based because nullness checks and `TreatWarningsAsErrors` are project properties.

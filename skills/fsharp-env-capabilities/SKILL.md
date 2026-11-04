@@ -1,7 +1,7 @@
 ---
 name: fsharp-env-capabilities
-description: Pass dependencies in F# as one generic env value whose capabilities are small IProvideX interfaces, so the compiler infers each function's dependency set and tests build only what a function needs. Use when an F# function list of dependency parameters grows, when wiring IServiceProvider or ASP.NET Core DI into F# functions, when a test must substitute one dependency, or when the user says env, capability, IProvide, or environment pattern.
-compatibility: Requires the .NET 10 SDK and PowerShell 7.2 or later. scripts/global.json selects .NET 10 because F# 8 can report FS0192 on IWSAM edge types. Scripts pull FsToolkit.ErrorHandling and Microsoft.Extensions.DependencyInjection from NuGet.
+description: Pass dependencies in F# as one generic env value whose capabilities are small IProvideX interfaces, so the compiler infers each function's dependency set and tests build only what a function needs. Also binds IConfiguration settings to F# types, validates them with Result at startup, and exposes the validated type as a capability instead of IOptions<T>. Use when an F# function list of dependency parameters grows, when wiring IServiceProvider or ASP.NET Core DI into F# functions, when binding or validating appsettings.json or IOptions settings in F#, when a test must substitute one dependency, or when the user says env, capability, IProvide, or environment pattern.
+compatibility: Requires the .NET 10 SDK and PowerShell 7.2 or later. scripts/global.json selects .NET 10 because F# 8 can report FS0192 on IWSAM edge types. Scripts pull FsToolkit.ErrorHandling, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.Configuration.Binder, and Microsoft.Extensions.Options.ConfigurationExtensions from NuGet.
 ---
 
 # F# environment capabilities
@@ -77,10 +77,27 @@ compare against.
 | Signature prints `IProvideDatabase -> ...` instead of `'a -> ... when 'a :> IProvideDatabase` | The function uses one capability. The compiler fixed `env` to that interface. | No action. Any env that implements it still passes. A composite that calls it still infers the full union. |
 | `FS0039: The type parameter 'e is not defined` | A composite named an IWSAM member. | Move the check into a leaf. See the `fsharp-iwsam-errors` skill. |
 
+## Settings
+
+Settings are one more capability. Bind configuration to a DTO, parse the DTO into a validated
+type at startup, and expose that type through an accessor.
+[references/SETTINGS.md](references/SETTINGS.md) has the full example and the binder table.
+[scripts/Settings.fsx](scripts/Settings.fsx) checks each rule below.
+
+- Bind to a `[<CLIMutable>]` DTO that only the composition root reads. A missing key gives no error: an `int` binds as `0` and a `string` as `null`.
+- In the DTO, use `Nullable<int>` for a required number and `string[]` for a list. A `string list` field throws when the key is present. A `string option` field is `None` even when the key has a value.
+- `section.Get<Dto>()` returns `null` for a missing section. `AddOptions<Dto>().Bind(section)` gives an instance with default fields. A missing nested record binds as `null` in both forms.
+- Parse the DTO with `parse: Dto -> Result<Settings, string list>`. Use `validation { let! ... and! ... }` so that the result holds every error. Name the configuration key in each error. For the parsed type, use the `parse-dont-validate` skill.
+- Stop the app before it does work. Either parse in the composition root and stop on `Error`, or register an `IValidateOptions<Dto>` that calls the parser and add `.ValidateOnStart()`.
+- `ValidateOnStart` runs only when a host starts. With `ValidateOnStart` and a bare `ServiceCollection`, call `provider.GetRequiredService<IStartupValidator>().Validate()`. Otherwise the error comes at the first read.
+- `Validate()` throws `OptionsValidationException` for one bad section and `AggregateException` for two or more. Catch both, or the error list is lost.
+- Expose the parsed type through one accessor for each section: `IProvideMailSettings` with `abstract MailSettings: MailSettings`. No function outside the composition root takes `IOptions<T>` or `IConfiguration`.
+- A test env returns a settings record literal. It needs no configuration, no container, and no `Options.Create`.
+
 ## Verify
 
-Run [scripts/run.ps1](scripts/run.ps1). It runs `Environment.fsx` and `FlatEnv.fsx`, prints the
-inferred signatures, and confirms that each script under `scripts/breaks/` fails with the error
+Run [scripts/run.ps1](scripts/run.ps1). It runs `Environment.fsx`, `FlatEnv.fsx`, and `Settings.fsx`,
+and prints the inferred signatures. It fails when a `Settings.fsx` check does not match. It also checks that each script under `scripts/breaks/` fails with the error
 quoted above. In your own project, print the signature of every composite with `dotnet fsi` and
 read the constraint list. A composite whose signature names a concrete env type has lost its
 genericity. Find the leaf that pinned it.
