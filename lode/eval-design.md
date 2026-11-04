@@ -85,6 +85,21 @@ A bench detail must stay on one line. `ConvertFrom-ProbeOutput` reads the check 
 A single string key does not measure the skill: Claude Sonnet and Codex without the skill write a `Dictionary` accumulator for it. The composite `(Site, Sensor)` key and the `Map` of offsets in the signature add F# costs that a careful agent can miss. A reference tuple key and `Map.tryFind` for each reading allocate on each reading. A struct tuple `sortBy` key boxes on each comparison.
 `tests/Grader.Tests.ps1` grades a good result, the original input, an idiomatic pipeline, and one defect for each grader rule: culture format, culture sort, a tuple key, `Map.tryFind` on the offsets, a throw or a wrong result only at production size, a finite mean for an infinite sum, a stale result on repeated calls, a wrong result on the allocation call or on every sixth call, a throw or an exit during measurement, forged `PASS` lines with and without an exit (code 0 or 3), a hang on a test input, a child process that outlives the bench, more than 16 MB of output, a changed signature, and a missing project.
 
+`sensor-report` results, 2 runs for each mode unless the row says otherwise (the full table is on issue #13):
+
+| Target | With skill | Without skill |
+|---|---|---|
+| `claude:sonnet` (`claude-sonnet-5-5`) | 100%, 14.0 turns | 100%, 10.5 turns |
+| `codex` (gpt-6.1-sol, effort high; default from config, not recorded in run.json) | 100%, 17.5 turns | 89%, 24.0 turns |
+| `opencode/flint-40b-free` | 94%, 96 turns | no valid run |
+| `opencode/nemotron-3.5-lightning-free` | no run loaded the skill | 69%, 18.5 turns |
+| `opencode/deepseek-v4.1-flash-free` | 100% (1 run) | no valid run |
+
+- Codex without the skill wrote `Printf.bprintf` in `render` and failed its allocation limit in both runs. With the skill, it used `StringBuilder.Append` with `ToString(..., CultureInfo.InvariantCulture)`.
+- Claude Sonnet passes in both modes, so the task does not measure the skill for Sonnet.
+- The free opencode models stop with `Free usage limit reached` after one or two runs. opencode then retries without output until the 30-minute run limit, and the transcript stays empty. A run with an empty transcript and a timeout is not a valid result. `opencode/glm-5.3-flash-free` gave no valid run.
+- The `nemotron-3.5-lightning-free` runs with the skill did not load it. Both scored 6/9 and failed the allocation and time limits of `summarize`.
+
 ```mermaid
 flowchart LR
     Tests[Restore original tests] --> Bench[Bench builds against public signatures]
