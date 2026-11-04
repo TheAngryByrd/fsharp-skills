@@ -21,6 +21,26 @@
       ],
       "grader": "graders/deterministic-salt.ps1",
       "prompt": "Accounts.fsx passes dependencies as one env object that implements small IProvideX capability interfaces. We need a unit-test env for changePassword in which the salt is deterministic: the 16 salt bytes must be 0x01 to 0x10.\n\nAdd a type named TestEnv for that test, and change whatever the design needs. Then append these lines at the end of the file:\n\n```fsharp\nlet testSalt, testHash = changePassword (TestEnv()) 7 \"hunter2\"\nprintfn \"test salt: %s\" (Convert.ToHexString testSalt)\nprintfn \"test hash: %s\" testHash\n```\n\nKeep the production demo working. The script must run with `dotnet fsi Accounts.fsx`."
+    },
+    {
+      "id": "startup-settings",
+      "files": [
+        "inputs/shipping/Shipping.fsx",
+        "inputs/shipping/App.fsx",
+        "inputs/shipping/appsettings.json"
+      ],
+      "grader": "graders/startup-settings.ps1",
+      "prompt": "App.fsx starts a small shipping app with `dotnet fsi App.fsx`. It reads the Shipping section of appsettings.json, prints `ready`, and then prints one quote line for each order in sampleOrders. Shipping.fsx holds the settings type and the functions that use the settings. The app passes its other dependencies as one env object that implements small IProvideX capability interfaces.\n\nToday a missing or wrong value in appsettings.json gives no error. The app runs and prints wrong quotes. These are the settings rules:\n\n- Carrier is required and must not be empty.\n- MaxWeightKg and RatePerKg are required and must be greater than 0.\n- FreeShippingOver is required and must be 0 or more.\n- BlockedRegions is optional. Each entry must be a two-letter upper-case region code.\n\nChange the app so that invalid settings stop it at startup, before it prints `ready`. The error must name each bad key, not only the first one. Valid settings must give the same output as today.\n\nThen add ShippingTests.fsx. It loads Shipping.fsx and builds these settings in code: Carrier \"Test Post\", MaxWeightKg 10, RatePerKg 2, FreeShippingOver 50, BlockedRegions [\"CA\"]. It prints the quote line for each order in sampleOrders, in the same format as App.fsx. It must run with `dotnet fsi ShippingTests.fsx` when appsettings.json does not exist, and it must not use the configuration system.\n\nKeep the functions in Shipping.fsx and the startup in App.fsx. Do not change sampleOrders or the quote line format.",
+      "rubric": [
+        {
+          "id": "validated-type",
+          "question": "Do the shipping functions in Shipping.fsx (cost, check, quote) read settings from a validated type that a parse or validate function produces, not from the type that the configuration binder fills and not from raw configuration? For example, `ShippingSettingsDto` is [<CLIMutable>] and `ShippingSettings.parse: ShippingSettingsDto -> Result<ShippingSettings, string list>` gives the type that `quote` reads. Answer no when the functions read the [<CLIMutable>] binder type itself."
+        },
+        {
+          "id": "settings-capability",
+          "question": "Does each of the three shipping functions in Shipping.fsx (cost, check, and quote) read the settings from the env value, for example `env.ShippingSettings` through an accessor interface such as `IProvideShippingSettings`? Answer no when any of the three takes the settings as a separate parameter, for example `cost (settings: ShippingSettings) order`, even when another of them reads the env."
+        }
+      ]
     }
   ]
 }

@@ -10,9 +10,10 @@ pwsh -NoProfile -File ./scripts/run.ps1
 | --- | --- |
 | `Environment.fsx` | The capability-environment pattern for dependencies, with a test env, a container env, and IWSAM errors in one composite. |
 | `FlatEnv.fsx` | The flat alternative, where the env implements the workers directly. Shows the silent member capture. |
+| `Settings.fsx` | Settings bound to a `[<CLIMutable>]` DTO, parsed with `Result`, checked at startup, and exposed as a capability. Exits with code 1 when a check does not match. |
 | `breaks/MissingCapability.fsx` | Must fail. Shows the error when an env misses a capability the call tree needs. |
 | `breaks/PinnedLeaf.fsx` | Must fail. Shows a leaf with explicit `'e` and `#IProvideX` fixed to its first caller. |
-| `run.ps1` | Runs both scripts, prints inferred signatures, and checks that each `breaks` script fails. |
+| `run.ps1` | Runs the three scripts, prints inferred signatures, and checks that each `breaks` script fails. |
 
 `scripts/Environment.fsx` applies the pattern from
 [Dealing with complex dependency injection in F#](https://www.bartoszsypytkowski.com/dealing-with-complex-dependency-injection-in-f/)
@@ -64,6 +65,30 @@ cacheThenDirect -> cache:k (env.Get bound to one Get with no warning)
 ```
 
 With accessors, `env.Database.Get` and `env.Cache.Get` cannot be confused. [ENV-PATTERNS.md](ENV-PATTERNS.md) lists the full reasoning.
+
+## Settings
+
+`scripts/Settings.fsx` compares each result with an expected value. [SETTINGS.md](SETTINGS.md) has
+the binder table. Two results are not visible in a normal build:
+
+```text
+ok    string option, key present -> { Nick = None }
+ok    int, key absent -> { Count = 0 }
+```
+
+`ValidateOnStart` with no host does not stop the app. The env resolves, and the first read of
+`env.MailSettings` throws. `IStartupValidator.Validate` reports every parser error at once:
+
+```text
+ok    ValidateOnStart with no host, first read -> throws OptionsValidationException
+ok    IStartupValidator.Validate with bad settings -> OptionsValidationException: Host is required | Port must be 1 to 65535, got 70000 | From is required | Retry:Attempts must be 1 or more, got 0
+```
+
+With two bad sections, `Validate` throws `AggregateException`, not `OptionsValidationException`:
+
+```text
+ok    IStartupValidator.Validate with two bad sections -> AggregateException: Host is required | Port must be 1 to 65535, got 70000 | From is required | Retry:Attempts must be 1 or more, got 0 | Queue:Name is required
+```
 
 ## Finding 1: a missing capability fails at compile time
 

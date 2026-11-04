@@ -10,7 +10,7 @@ The skills cover domain design, dependency management, error composition, failur
 | [parse-dont-validate](skills/parse-dont-validate/SKILL.md) | Parses raw input into domain types and preserves their invariants through updates and conversions. | Makes invalid states harder to construct and reduces repeated checks on primitive values. |
 | [optimize-fsharp-typecheck-graph](skills/optimize-fsharp-typecheck-graph/SKILL.md) | Uses compiler dependency graphs and timing reports to investigate F# build performance. | Separates measured build improvements from graph changes and checks source and binary compatibility. |
 | [fsharp-iwsam-errors](skills/fsharp-iwsam-errors/SKILL.md) | Composes `Result` errors through interfaces with static abstract members (IWSAM). The caller selects a concrete error type. | Reduces repeated `Result.mapError` conversions and uses compiler constraints to require the error cases needed by a call tree. |
-| [fsharp-env-capabilities](skills/fsharp-env-capabilities/SKILL.md) | Passes dependencies through a generic environment with small `IProvideX` capability interfaces. | Lets the compiler infer dependency requirements and lets tests supply only the dependencies a function needs. |
+| [fsharp-env-capabilities](skills/fsharp-env-capabilities/SKILL.md) | Passes dependencies through a generic environment with small `IProvideX` capability interfaces. Binds settings to `[<CLIMutable>]` F# types, validates them with `Result` at startup, and exposes the validated type as a capability instead of `IOptions<T>`. | Lets the compiler infer dependency requirements and lets tests supply only the dependencies a function needs. The configuration binder gives no error for a missing key, binds an F# `option` as `None`, and throws on an F# `list` key that has a value. `ValidateOnStart` with no host does not stop the app. |
 | [fsharp-async-composition](skills/fsharp-async-composition/SKILL.md) | Chooses between `task`, `async`, `valueTask`, `cancellableTask`, and `taskResult`, and converts between Task, Async, and ValueTask at boundaries with correct cancellation and exceptions. | Agents mix these types and write code that compiles but loses cancellation, never starts an `Async`, or awaits a `ValueTask` twice. FS0193 between these types appeared in 93 agent sessions. |
 | [fsharp-native-aot](skills/fsharp-native-aot/SKILL.md) | Makes F# formatting, logging, JSON, and configuration work under Native AOT, and compares JIT output with native exe output. | F# formatting can throw or silently lose union and tuple data in a native exe, and publish warnings do not point at that code. |
 | [fsharp-failure-paths](skills/fsharp-failure-paths/SKILL.md) | Replaces partial functions, `failwith`, hidden defaults, swallowed exceptions, and first-error-only validation with explicit `Error` results. | The compiler accepts these defects, so they reach human review. Review evidence ranks failure-path handling as a top category of comments on agent F# code. |
@@ -70,6 +70,10 @@ Use fsharp-env-capabilities to replace these dependency parameters with a capabi
 ```
 
 ```text
+Use fsharp-env-capabilities to validate the appsettings.json settings at startup and pass the validated settings to these functions as a capability.
+```
+
+```text
 Use fsharp-failure-paths to find the partial functions, defaults, and caught exceptions in this change and report each failure as an Error.
 ```
 
@@ -115,7 +119,8 @@ Each `scripts/global.json` selects .NET 10. Run the supplied runner so SDK selec
 The F# 8 compiler can report `FS0192` for the IWSAM examples.
 Read the selected skill's **Verify** section for its runner and expected compiler diagnostics.
 Compile-time break tests intentionally fail compilation. Their runners check for the expected diagnostics.
-Compare printed example outcomes with the findings documents. The IWSAM and environment runners do not assert these runtime outcomes.
+Compare printed example outcomes with the findings documents. The IWSAM runner and the environment scripts `Environment.fsx` and `FlatEnv.fsx` do not assert these runtime outcomes.
+The environment runner asserts one script, `scripts/Settings.fsx`. It fails when a configuration binder result or a startup validation result differs.
 The failure-path runner, `scripts/run.ps1`, asserts its outcomes. It fails when an unsafe form does not fail or a safe form does not report the failure.
 
 The idiom review skill includes a runner, `scripts/run.ps1`. It requires the .NET 10 SDK and PowerShell 7.2 or later.
