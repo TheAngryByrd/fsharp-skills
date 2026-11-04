@@ -25,10 +25,11 @@ if (-not (Test-Path $source)) {
 }
 
 function Get-Code([string]$Path) {
-    $tokens = '(?m)^[ \t]*#load(?:[ \t]+@?"[^"\n]*")+|"""[\s\S]*?"""|@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|\(\*[\s\S]*?\*\)|//[^\n]*'
+    $tokens = '(?m)^[ \t]*#load(?:[ \t]+@?"[^"\n]*")+|''(?:\\.|[^''\\\n])''|"""[\s\S]*?"""|@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|\(\*[\s\S]*?\*\)|//[^\n]*'
     [regex]::Replace((Get-Content -Raw $Path), $tokens, {
             param($m)
             if ($m.Value.TrimStart().StartsWith('#load')) { $m.Value }
+            elseif ($m.Value.StartsWith("'")) { "'c'" }
             elseif ($m.Value.StartsWith('(*') -or $m.Value.StartsWith('//')) { '' }
             else { '""' }
         })
@@ -50,7 +51,7 @@ $seen.Add([IO.Path]::GetFullPath($domain)) | Out-Null
 $sources = @(Get-LoadedSources $source $seen)
 $code = ($sources | ForEach-Object { (Get-Code $_) -replace '(?m)^[ \t]*#load\b.*$', '' }) -join "`n"
 $byHand = @([regex]::Matches($code, '\b(JsonDocument|JsonNode|JsonObject|JsonArray|JsonValue|JsonElement|Utf8JsonReader|Utf8JsonWriter)\b|\bJsonConverter\s*<') | ForEach-Object Value | Sort-Object -Unique)
-$checks += New-Check 'The codec uses JsonSerializer and does not read or write JSON by hand' ($code -match 'JsonSerializer\.(Serialize|Deserialize)' -and $byHand.Count -eq 0) $(if ($byHand) { 'uses ' + ($byHand -join ', ') } else { '' })
+$checks += New-Check 'The codec uses JsonSerializer and does not read or write JSON by hand' ($code -match 'JsonSerializer\s*\.\s*(Serialize|Deserialize)' -and $byHand.Count -eq 0) $(if ($byHand) { 'uses ' + ($byHand -join ', ') } else { '' })
 
 $dir = Join-Path $OutDir 'probe'
 Copy-Workspace -Workspace $Workspace -Destination $dir

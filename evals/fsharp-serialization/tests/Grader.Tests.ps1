@@ -110,7 +110,7 @@ try {
     $editedDomain = { param($ws) Add-Content (Join-Path $ws 'Domain.fsx') "`ntype Extra = { X: int }" }
     Assert-Checks 'edited Domain.fsx' (Invoke-Case 'edited-domain' 'good' $editedDomain) (New-Expected @($names[0]))
 
-    $jsonObject = { param($ws) Add-Content (Join-Path $ws 'Codec.fsx') "`nlet private probe = JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(""{}"")" }
+    $jsonObject = { param($ws) Add-Content (Join-Path $ws 'Codec.fsx') ("`nlet private quote = " + "'""'" + "`nlet private probe = JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(""{}"")") }
     Assert-Checks 'JsonObject' (Invoke-Case 'json-object' 'good' $jsonObject) (New-Expected @($names[1]))
 
     $loadedHelper = {
