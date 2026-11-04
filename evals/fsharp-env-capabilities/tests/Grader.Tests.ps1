@@ -9,6 +9,7 @@ $env:SKILL_EVAL_JUDGE = 'off'
 $names = @(
     'Valid settings: App.fsx prints ready and the expected quotes'
     'Settings with no BlockedRegions key run and block no region'
+    'FreeShippingOver 0 is valid: App.fsx prints ready and quotes 0.00 for each accepted order'
     'Invalid settings stop App.fsx before it prints ready'
     'The startup error names Carrier, MaxWeightKg, RatePerKg, and BlockedRegions'
     'The startup error reports the missing FreeShippingOver key'
@@ -33,7 +34,7 @@ function Assert-Checks([string]$Case, $Checks, [bool[]]$Expected) {
     $actual = @{}
     foreach ($c in $Checks) { $actual[$c.text] = $c.passed }
     $wrong = @(for ($i = 0; $i -lt $names.Count; $i++) { if ($actual[$names[$i]] -ne $Expected[$i]) { $names[$i] } })
-    if ($wrong.Count -gt 0 -or $actual.Count -ne $names.Count) {
+    if ($wrong.Count -gt 0 -or $actual.Count -ne $names.Count -or $Expected.Count -ne $names.Count) {
         $detail = ($Checks | ForEach-Object { "  [$($_.passed)] $($_.text) $($_.evidence)" }) -join "`n"
         $failures.Add("${Case}: unexpected checks: $($wrong -join '; ')`n$detail")
     }
@@ -60,18 +61,23 @@ $decimalDefault = {
     Edit-File $shipping 'FreeShippingOver: Nullable<decimal>' 'FreeShippingOver: decimal'
     Edit-File $shipping '(?s)if not dto\.FreeShippingOver\.HasValue then .*?else Ok dto\.FreeShippingOver\.Value' 'if dto.FreeShippingOver < 0m then Error "FreeShippingOver must be 0 or more" else Ok dto.FreeShippingOver'
 }
+$zeroRejected = {
+    param($ws)
+    Edit-File (Join-Path $ws 'Shipping.fsx') 'elif dto\.FreeShippingOver\.Value < 0m then' 'elif dto.FreeShippingOver.Value <= 0m then'
+}
 $testReadsSettings = {
     param($ws)
     Edit-File (Join-Path $ws 'ShippingTests.fsx') '^#load "Shipping\.fsx"' "#load ""Shipping.fsx""`nif System.IO.File.Exists(System.IO.Path.Combine(__SOURCE_DIRECTORY__, ""appsettings.json"")) then failwith ""appsettings.json exists"""
 }
 
 try {
-    Assert-Checks 'good' (Invoke-Case 'good' @('startup-settings-good')) (@($true) * 9)
-    Assert-Checks 'input with Options.Create test' (Invoke-Case 'options' @('startup-settings-options')) @($true, $false, $false, $false, $false, $false, $true, $false, $false)
-    Assert-Checks 'ValidateOnStart with no startup validator call' (Invoke-Case 'late' @('startup-settings-good') $validateLate) @($true, $true, $false, $false, $false, $false, $true, $true, $true)
-    Assert-Checks 'only the first error printed' (Invoke-Case 'first-error' @('startup-settings-good') $firstErrorOnly) @($true, $true, $true, $false, $false, $true, $true, $true, $true)
-    Assert-Checks 'FreeShippingOver bound as decimal' (Invoke-Case 'decimal' @('startup-settings-good') $decimalDefault) @($true, $true, $true, $true, $false, $true, $true, $true, $true)
-    Assert-Checks 'test that fails when appsettings.json exists' (Invoke-Case 'test-reads-settings' @('startup-settings-good') $testReadsSettings) (@($true) * 9)
+    Assert-Checks 'good' (Invoke-Case 'good' @('startup-settings-good')) (@($true) * 10)
+    Assert-Checks 'input with Options.Create test' (Invoke-Case 'options' @('startup-settings-options')) @($true, $false, $true, $false, $false, $false, $false, $true, $false, $false)
+    Assert-Checks 'ValidateOnStart with no startup validator call' (Invoke-Case 'late' @('startup-settings-good') $validateLate) @($true, $true, $true, $false, $false, $false, $false, $true, $true, $true)
+    Assert-Checks 'only the first error printed' (Invoke-Case 'first-error' @('startup-settings-good') $firstErrorOnly) @($true, $true, $true, $true, $false, $false, $true, $true, $true, $true)
+    Assert-Checks 'FreeShippingOver bound as decimal' (Invoke-Case 'decimal' @('startup-settings-good') $decimalDefault) @($true, $true, $true, $true, $true, $false, $true, $true, $true, $true)
+    Assert-Checks 'test that fails when appsettings.json exists' (Invoke-Case 'test-reads-settings' @('startup-settings-good') $testReadsSettings) (@($true) * 10)
+    Assert-Checks 'FreeShippingOver 0 rejected' (Invoke-Case 'zero-rejected' @('startup-settings-good') $zeroRejected) @($true, $true, $false, $true, $true, $true, $true, $true, $true, $true)
 } finally {
     $env:SKILL_EVAL_JUDGE = $judge
     Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue

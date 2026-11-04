@@ -13,6 +13,9 @@ $validJson = @'
 $noBlockedJson = @'
 { "Shipping": { "Carrier": "Contoso Freight", "MaxWeightKg": 30, "RatePerKg": 1.5, "FreeShippingOver": 100 } }
 '@
+$zeroFreeJson = @'
+{ "Shipping": { "Carrier": "Contoso Freight", "MaxWeightKg": 30, "RatePerKg": 1.5, "FreeShippingOver": 0, "BlockedRegions": [ "AQ" ] } }
+'@
 $badJson = @'
 { "Shipping": { "Carrier": "", "MaxWeightKg": -5, "BlockedRegions": [ "aq" ] } }
 '@
@@ -25,6 +28,7 @@ $validExpected = @(
     'order 4: rejected (blocked region AQ)'
 ) -join "`n"
 $noBlockedExpected = $validExpected -replace 'order 4: rejected \(blocked region AQ\)', 'order 4: Contoso Freight 1.50'
+$zeroFreeExpected = $validExpected -replace 'order 1: Contoso Freight 6\.00', 'order 1: Contoso Freight 0.00'
 $testExpected = @(
     'order 1: Test Post 8.00'
     'order 2: rejected (blocked region CA)'
@@ -64,6 +68,9 @@ $checks += New-Check 'Valid settings: App.fsx prints ready and the expected quot
 
 $noBlocked = Invoke-Scenario 'no-blocked' 'App.fsx' $noBlockedJson
 $checks += New-Check 'Settings with no BlockedRegions key run and block no region' ($noBlocked.ExitCode -eq 0 -and $noBlocked.Orders -eq $noBlockedExpected) (Get-LastLines $noBlocked.Text 6)
+
+$zeroFree = Invoke-Scenario 'zero-free' 'App.fsx' $zeroFreeJson
+$checks += New-Check 'FreeShippingOver 0 is valid: App.fsx prints ready and quotes 0.00 for each accepted order' ($zeroFree.ExitCode -eq 0 -and $zeroFree.Ready -and $zeroFree.Orders -eq $zeroFreeExpected) (Get-LastLines $zeroFree.Text 6)
 
 $bad = Invoke-Scenario 'bad' 'App.fsx' $badJson
 $badStopped = $bad.ExitCode -ne 0 -and -not $bad.Ready -and -not $bad.Orders
