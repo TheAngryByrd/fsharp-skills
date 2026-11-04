@@ -39,7 +39,7 @@ The agent must still map each contract rule to a setting, keep the customer shap
 
 The first version of the task asked for a new `Codec.fsx` with no starting code. Claude Sonnet and Codex wrote a `JsonElement` parser by hand without the skill and passed every check (7 and 10 turns). A hand-written parser avoids every converter setting, so the task measured nothing.
 The current prompt says to use `JsonSerializer` with FSharp.SystemTextJson, and not to read or write JSON with `JsonDocument`, `JsonNode`, `JsonElement`, `Utf8JsonReader`, `Utf8JsonWriter`, or a custom `JsonConverter`.
-The text check reads only `Codec.fsx` and the files that it loads with `#load`, except `Domain.fsx`. It reads `#load` lines, strings, and comments in one scan. It keeps each `#load` directive and its quoted paths when they are outside a string or comment, and removes comments and string contents. A trailing comment on a `#load` line is removed like any other comment. A `#load` inside a comment or a multiline string does not add a file, and inline JSON that contains `JsonNode` does not fail the check. A test file that uses `JsonNode.DeepEquals`, as the skill recommends, does not fail the check. A DTO with `JsonSerializer` passes.
+The text check reads only `Codec.fsx` and the files that it loads with `#load`, except `Domain.fsx`. It reads `#load` lines, strings, and comments in one scan. It keeps each `#load` directive and its quoted or verbatim (`@"..."`) paths when they are outside a string or comment, and removes comments and string contents. A trailing comment on a `#load` line is removed like any other comment. A `#load` inside a comment or a multiline string does not add a file, and inline JSON that contains `JsonNode` does not fail the check. A test file that uses `JsonNode.DeepEquals`, as the skill recommends, does not fail the check. A DTO with `JsonSerializer` passes.
 
 ## Grader
 
@@ -69,7 +69,7 @@ flowchart LR
 | Original input | Every order sample check, `null` optional values, unknown nested properties, and `Case`/`Fields` |
 | No `Codec.fsx` | The compile check |
 | Edited `Domain.fsx` | `Domain.fsx is unchanged` |
-| `JsonObject` in the codec, `JsonDocument` in a loaded file | The text check |
+| `JsonObject` in the codec, `JsonDocument` in a file loaded with a normal or a verbatim path | The text check |
 | One options value for customers and orders | The four customer checks |
 | `WhenWritingNull` | Missing `id` and `reserved` (read as `null`) and a line without `quantity` (throws `NullReferenceException`) |
 | DTO that reads a missing `reserved` as empty | Missing and `null` `reserved` |

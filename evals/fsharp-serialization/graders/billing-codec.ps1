@@ -25,7 +25,7 @@ if (-not (Test-Path $source)) {
 }
 
 function Get-Code([string]$Path) {
-    $tokens = '(?m)^[ \t]*#load(?:[ \t]+"[^"\n]*")+|"""[\s\S]*?"""|@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|\(\*[\s\S]*?\*\)|//[^\n]*'
+    $tokens = '(?m)^[ \t]*#load(?:[ \t]+@?"[^"\n]*")+|"""[\s\S]*?"""|@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|\(\*[\s\S]*?\*\)|//[^\n]*'
     [regex]::Replace((Get-Content -Raw $Path), $tokens, {
             param($m)
             if ($m.Value.TrimStart().StartsWith('#load')) { $m.Value }

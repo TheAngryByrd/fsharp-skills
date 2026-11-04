@@ -120,6 +120,14 @@ try {
     }
     Assert-Checks 'JsonDocument in a loaded file' (Invoke-Case 'loaded-helper' 'good' $loadedHelper) (New-Expected @($names[1]))
 
+    $verbatimHelper = {
+        param($ws)
+        & $loadedHelper $ws
+        $codec = Join-Path $ws 'Codec.fsx'
+        Set-Content $codec ((Get-Content -Raw $codec).Replace('#load "Helpers.fsx"', '#load @"Helpers.fsx"'))
+    }
+    Assert-Checks 'JsonDocument in a file loaded with a verbatim path' (Invoke-Case 'verbatim-helper' 'good' $verbatimHelper) (New-Expected @($names[1]))
+
     Assert-Checks 'one options value for both types' (Invoke-Case 'one-options' 'one-options') (New-Expected @(
             'Stored customer ann.json decodes to the same customer'
             'encodeCustomer still writes the ann.json shape'
