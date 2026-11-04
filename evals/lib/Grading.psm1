@@ -336,5 +336,60 @@ function Invoke-Rubric {
     }
 }
 
+function Get-TranscriptCommands {
+    param([Parameter(Mandatory)][string]$TranscriptPath)
+    if (-not (Test-Path $TranscriptPath)) { return }
+    $find = {
+        param($Node)
+        if ($null -eq $Node -or $Node -is [string] -or $Node -is [ValueType]) { return }
+        if ($Node -is [System.Collections.IEnumerable]) { foreach ($item in $Node) { & $find $item }; return }
+        foreach ($prop in $Node.PSObject.Properties) {
+            if ($prop.Name -eq 'command' -and $prop.Value -is [string]) { $prop.Value } else { & $find $prop.Value }
+        }
+    }
+    foreach ($line in Get-Content $TranscriptPath) {
+        if (-not $line.TrimStart().StartsWith('{')) { continue }
+        try { $event = $line | ConvertFrom-Json -Depth 64 } catch { continue }
+        & $find $event
+    }
+}
+
+function Get-TranscriptCommandResults {
+    param([Parameter(Mandatory)][string]$TranscriptPath)
+    if (-not (Test-Path $TranscriptPath)) { return }
+    $events = foreach ($line in Get-Content $TranscriptPath) {
+        if (-not $line.TrimStart().StartsWith('{')) { continue }
+        try { $line | ConvertFrom-Json -Depth 64 } catch { }
+    }
+    $has = { param($o, $name) $null -ne $o -and $o -is [psobject] -and $o.PSObject.Properties[$name] }
+    $text = { param($c) if ($null -eq $c) { '' } elseif ($c -is [string]) { $c } else { (@($c) | ForEach-Object { if ($_ -is [string]) { $_ } elseif (& $has $_ 'text') { "$($_.text)" } }) -join "`n" } }
+    $claudeCalls = [ordered]@{}
+    foreach ($e in $events) {
+        if (-not (& $has $e 'type')) { continue }
+        if ($e.type -eq 'assistant' -and (& $has $e 'message')) {
+            foreach ($c in @($e.message.content)) {
+                if ((& $has $c 'type') -and $c.type -eq 'tool_use' -and (& $has $c.input 'command')) { $claudeCalls[$c.id] = "$($c.input.command)" }
+            }
+        } elseif ($e.type -eq 'user' -and (& $has $e 'message')) {
+            foreach ($c in @($e.message.content)) {
+                if ((& $has $c 'type') -and $c.type -eq 'tool_result' -and $claudeCalls.Contains("$($c.tool_use_id)")) {
+                    [pscustomobject]@{ Command = $claudeCalls["$($c.tool_use_id)"]; Failed = [bool]((& $has $c 'is_error') -and $c.is_error); Output = (& $text $c.content) }
+                    $claudeCalls.Remove("$($c.tool_use_id)")
+                }
+            }
+        } elseif ($e.type -eq 'item.completed' -and (& $has $e 'item') -and $e.item.type -eq 'command_execution') {
+            $exit = if (& $has $e.item 'exit_code') { $e.item.exit_code } else { $null }
+            $failed = ($null -ne $exit -and $exit -ne 0) -or ((& $has $e.item 'status') -and $e.item.status -eq 'failed')
+            [pscustomobject]@{ Command = "$($e.item.command)"; Failed = [bool]$failed; Output = $(if (& $has $e.item 'aggregated_output') { "$($e.item.aggregated_output)" } else { '' }) }
+        } elseif ($e.type -eq 'tool_use' -and (& $has $e 'part') -and (& $has $e.part 'state') -and (& $has $e.part.state.input 'command')) {
+            $state = $e.part.state
+            $exit = if ((& $has $state 'metadata') -and (& $has $state.metadata 'exit')) { $state.metadata.exit } else { $null }
+            $failed = $state.status -eq 'error' -or ($null -ne $exit -and $exit -ne 0)
+            [pscustomobject]@{ Command = "$($state.input.command)"; Failed = [bool]$failed; Output = $(if (& $has $state 'output') { "$($state.output)" } else { '' }) }
+        }
+    }
+    foreach ($id in $claudeCalls.Keys) { [pscustomobject]@{ Command = $claudeCalls[$id]; Failed = $true; Output = '' } }
+}
+
 Export-ModuleMember -Function New-Check, Write-Checks, Read-AnswerJson, Get-AgentFiles, Copy-Workspace,
-    Invoke-Capture, Get-RuntimeId, Invoke-JitAndNative, Get-LastLines, ConvertFrom-ProbeOutput, Get-ProbeScript, Get-WorkspaceDiff, Invoke-Rubric
+    Invoke-Capture, Get-RuntimeId, Invoke-JitAndNative, Get-LastLines, ConvertFrom-ProbeOutput, Get-ProbeScript, Get-WorkspaceDiff, Invoke-Rubric, Get-TranscriptCommands, Get-TranscriptCommandResults

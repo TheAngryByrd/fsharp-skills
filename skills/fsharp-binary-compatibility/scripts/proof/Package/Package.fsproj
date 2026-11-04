@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Lib</AssemblyName>
+    <PackageId>$(ProofPackageId)</PackageId>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <RestoreAdditionalProjectSources>$(ProofFeed)</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ProofFSharpCore)' != ''">
+    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(CaseFile)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ProofFSharpCore)' != ''">
+    <PackageReference Include="FSharp.Core" Version="$(ProofFSharpCore)" />
+  </ItemGroup>
+</Project>

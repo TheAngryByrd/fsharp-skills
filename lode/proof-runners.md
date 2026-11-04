@@ -48,6 +48,26 @@ Each `scripts/breaks/<Name>/` folder has its own `Break.fsproj`. The runner chec
 Sample.EmailModule | static create(input: System.String) : Microsoft.FSharp.Core.FSharpResult<Sample.Email, System.String>
 ```
 
+## Binary compatibility
+
+The `fsharp-binary-compatibility` runner is project-based and requires PowerShell 7.4. `scripts/Directory.Build.props` puts `bin` and `obj` under `FSHARP_BINCOMPAT_PROOF_ROOT`, a per-run temp directory that the runner deletes.
+Each `scripts/proof/cases/<case>/` folder holds library versions (`v1.fs`, `break.fs`, `safe.fs`, and others) and one `Consumer.fs`. A library file whose first line is `// flags: <compiler flags>` is built with those flags. Each `// expect <variant> from <base>: key=value ...` line in `Consumer.fs` is one check:
+
+```fsharp
+// expect break from v1: old=wrong rebuild=same apicompat=clean strict=reports sig=reports api=reports
+```
+
+- `old`: the consumer that was built in Release against `<base>` runs with the `<variant>` DLL copied over `Lib.dll`. `same`, `wrong`, `stale`, `updated`, or an exception name.
+- `rebuild`: the consumer built against `<variant>`. `same`, `differs`, an expected compiler code such as `FS0039`, or an exception name. A failed build with other codes gives `fails:<codes>`.
+- `apicompat` and `strict`: `dotnet apicompat --left <base> --right <variant>`, without and with `--strict-mode --enable-rule-attributes-must-match --enable-rule-cannot-change-parameter-name`.
+- `sig`: the `--sig` output of the two builds, or `missing` when a build wrote no file. The runner adds `--sig` through `SigDiff.targets`, the same file that `sig-diff.ps1` uses, so the project `OtherFlags` stay.
+- `api`: PublicApiGenerator 11.4.6 output from `PublicApi.fsx`.
+- `rebuildwarn`: a warning code that the rebuild must report, such as `FS0025`.
+- `strictrebuild`: the consumer built again with `-p:TreatWarningsAsErrors=true`. `ok`, or the expected error code, such as `FS0044` for a new `[<Obsolete>]`.
+- `build=FS0871`: the variant must fail to compile with that code.
+
+`scripts/.config/dotnet-tools.json` pins `Microsoft.DotNet.ApiCompat.Tool` 10.0.403, and the runner runs `dotnet tool restore`. `proof/ToolProofs.ps1` runs after the cases with a private `NUGET_PACKAGES` folder and a unique package ID. It checks package validation (CP0002 for the new parameter, a pass for the safe change and for a union case in the middle), the generated `CompatibilitySuppressions.xml`, the FSharp.Core dependency in the `.nuspec`, NU1605 and a startup `FileNotFoundException` for a consumer pinned to FSharp.Core 8.0.400, `Microsoft.CodeAnalysis.PublicApiAnalyzers` on an F# library against a C# control, and the exit codes of `sig-diff.ps1`, also for a multi-target project with no `-Framework` and a missing project path. Another tool proof puts a `Directory.Build.props` above the repository and checks that `-BaselineRef` gives no change, because the baseline worktree is a sibling of the repository. The analyzer projects build from the same temp copy with its own `nuget.config`. A `trap` in `sig-diff.ps1` turns each terminating error into exit code 2, because exit code 1 means a signature change. The package proofs run from a temp copy with its own `nuget.config` (`<clear />` for sources and package source mapping), because a parent `nuget.config` with package source mapping hides the local feed (NU1101).
+
 ## Native AOT
 
 The Native AOT proof runner is project-based because `dotnet fsi` cannot publish a native exe.

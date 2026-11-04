@@ -28,6 +28,9 @@
 - Wire contract - The JSON shape that another service or a stored record expects for each type: property names, union shape, optional and required fields, and unknown properties.
 - Saved sample - A JSON file that another service or an older version of the code wrote. Tests decode it and compare the encoded value with it. A sample regenerated from new code is not a saved sample.
 - Silent data loss - Native exe output that has less content than the JIT output, with no exception.
+- Binary compatibility - A consumer that was compiled against v1 of a library runs with the v2 DLL, with no rebuild, and gives the same results. A successful build proves only source compatibility.
+- Old consumer - A consumer binary that was compiled against the baseline library and runs with the new DLL in place of the old one.
+- Cross-assembly inlining - In a Release build, the F# compiler copies small function bodies from the optimization data in a referenced F# DLL. `--nooptimizationdata` on the library stops it, except for `inline` functions.
 
 Use these terms consistently in the Lode, `evals/README.md`, and skill documentation. A failure alone does not prove the expected compiler constraint.
 
