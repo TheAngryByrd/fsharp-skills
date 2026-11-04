@@ -54,6 +54,15 @@ $names = @(
     'An unknown status returns Error'
     'The JSON null returns Error'
     'Malformed JSON returns Error'
+    'A line without sku returns Error'
+    'A null sku returns Error'
+    'A null line item returns Error'
+    'A missing status returns Error'
+    'A missing payment returns Error'
+    'A payment without kind returns Error'
+    'A card without last4 returns Error'
+    'A card without expiry returns Error'
+    'A gift card without code returns Error'
     'No encoded order has a Case or Fields property'
     'Stored customer ann.json decodes to the same customer'
     'encodeCustomer still writes the ann.json shape'
@@ -79,7 +88,8 @@ try {
         Add-Content (Join-Path $ws 'Codec.fsx') ("`nlet private regressionJson = " + '"""{"note":"JsonNode // (* JsonDocument"}"""' + "`nlet private script = " + '"""' + "`n#load ""Tests.fsx""`n" + '"""' + "`nlet private label = ""JsonElement""`n// Do not parse JSON by hand with JsonDocument.`n(* JsonNode is not used here. Example:`n#load ""Tests.fsx""`n*)`n// #load ""Tests.fsx""")
         $codec = Join-Path $ws 'Codec.fsx'
         Set-Content (Join-Path $ws 'JsonNode.fsx') "module JsonNodeNames`nlet sample = 1"
-        Set-Content $codec ((Get-Content -Raw $codec).Replace('#load "Domain.fsx"', "#load ""Domain.fsx"" // See ""Tests.fsx"" for JsonNode comparisons.`n#load ""JsonNode.fsx"""))
+        New-Item -ItemType File (Join-Path $ws 'Empty.fsx') | Out-Null
+        Set-Content $codec ((Get-Content -Raw $codec).Replace('#load "Domain.fsx"', "#load ""Domain.fsx"" // See ""Tests.fsx"" for JsonNode comparisons.`n#load ""JsonNode.fsx""`n#load ""Empty.fsx"""))
     }
     Assert-Checks 'JsonNode in a test file, comments, and strings' (Invoke-Case 'tests-file' 'good' $testsFile) (New-Expected @())
 
@@ -115,6 +125,23 @@ try {
     foreach ($n in $names[0..17]) { $expectedExit[$n] = $true }
     $expectedExit['The probe runs to the end'] = $false
     Assert-Checks 'exit in decodeOrder' (Invoke-Case 'early-exit' 'good' $earlyExit) $expectedExit
+
+    $noGuards = {
+        param($ws)
+        $codec = Join-Path $ws 'Codec.fsx'
+        $text = (Get-Content -Raw $codec).Replace('    | "card" when not (isNull dto.Last4 || isNull dto.Expiry) -> ', '    | "card" -> ')
+        $text = $text.Replace('    | "gift_card" when not (isNull dto.Code) -> ', '    | "gift_card" -> ')
+        $text = $text.Replace('    if isNull (box dto) || isNull dto.Sku || not dto.Quantity.HasValue then', '    if not dto.Quantity.HasValue then')
+        Set-Content $codec $text
+    }
+    Assert-Checks 'DTO without per-field null checks' (Invoke-Case 'no-guards' 'dto' $noGuards) (New-Expected @(
+            'A line without sku returns Error'
+            'A null sku returns Error'
+            'A null line item returns Error'
+            'A card without last4 returns Error'
+            'A card without expiry returns Error'
+            'A gift card without code returns Error'
+        ))
 
     Assert-Checks 'original input' (Invoke-Case 'input') (New-Expected (@($names[3..11]) + 'No encoded order has a Case or Fields property'))
 
@@ -154,6 +181,9 @@ try {
             'A missing required id returns Error'
             'A line without quantity returns Error'
             'A missing reserved property returns Error'
+            'A card without last4 returns Error'
+            'A card without expiry returns Error'
+            'A gift card without code returns Error'
         ))
 
     Assert-Checks 'default skippable options' (Invoke-Case 'skippable-default' 'skippable-default') (New-Expected @(

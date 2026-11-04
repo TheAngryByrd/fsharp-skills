@@ -116,6 +116,15 @@ checkError "An unknown payment kind returns Error" """{"id":"ORD-9","status":"pe
 checkError "An unknown status returns Error" """{"id":"ORD-9","status":"lost","payment":{"kind":"cash"},"lines":[],"reserved":{}}"""
 checkError "The JSON null returns Error" "null"
 checkError "Malformed JSON returns Error" """{"id": "ORD-9", """
+checkError "A line without sku returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"cash"},"lines":[{"quantity":1}],"reserved":{}}"""
+checkError "A null sku returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"cash"},"lines":[{"sku":null,"quantity":1}],"reserved":{}}"""
+checkError "A null line item returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"cash"},"lines":[null],"reserved":{}}"""
+checkError "A missing status returns Error" """{"id":"ORD-9","payment":{"kind":"cash"},"lines":[],"reserved":{}}"""
+checkError "A missing payment returns Error" """{"id":"ORD-9","status":"pending","lines":[],"reserved":{}}"""
+checkError "A payment without kind returns Error" """{"id":"ORD-9","status":"pending","payment":{"last4":"4242","expiry":"12/27"},"lines":[],"reserved":{}}"""
+checkError "A card without last4 returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"card","expiry":"12/27"},"lines":[],"reserved":{}}"""
+checkError "A card without expiry returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"card","last4":"4242"},"lines":[],"reserved":{}}"""
+checkError "A gift card without code returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"gift_card"},"lines":[],"reserved":{}}"""
 
 let rec caseOrFields (node: JsonNode) =
     match node with

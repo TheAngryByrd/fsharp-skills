@@ -1,7 +1,7 @@
 # Wire compatibility
 
 JSON that a service stored or sent before a change must stay readable after it.
-The results in this file use FSharp.SystemTextJson 1.4.36 with `WithSkippableOptionFields(SkippableOptionFields.Always, deserializeNullAsNone = true)`.
+Each result in this file has a check in `scripts/Serialization.fsx`, with FSharp.SystemTextJson 1.4.36. The record field rows use `WithSkippableOptionFields(SkippableOptionFields.Always, deserializeNullAsNone = true)`. The union case rows use `JsonFSharpOptions.Default()`.
 
 ## Type changes
 

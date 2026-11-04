@@ -19,7 +19,7 @@ A serializer that round-trips its own output can still disagree with the other s
 - Encoding flags apply to every union. When one union needs a different shape, use `WithOverrides`. A `[<JsonFSharpConverter>]` attribute on a type has no effect when global options exist, unless you call `WithAllowOverride`.
 - To leave out `None` and read an absent or `null` value as `None`, use `WithSkippableOptionFields(SkippableOptionFields.Always, deserializeNullAsNone = true)`.
   `WithSkippableOptionFields()` reads `null` in a `string option` as `Some null`.
-  Do not use `DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull` for this. It reads a missing required `string` or `Map` as `null` and throws `NullReferenceException` for a missing `int`.
+  Do not use `DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull` for this. It reads a missing required `string`, `Map`, or union case field as `null` and throws `NullReferenceException` for a missing `int`.
 - A single-case union around an option (`Box of int option`) writes `null` for `Box None` and reads it back as a `null` union. An option of an option writes `Some None` as `null`. Change the type or write a converter.
 - At the decode boundary, return `Error` for a `JsonException`. When the code reads with System.Text.Json alone, into a DTO class, or into a single-case union around an option, also return `Error` for a `null` result. Run the cases that other exceptions can come from, and fix the settings that cause them.
 - When the wire shape differs from the domain types, or the domain types have private constructors, decode into a DTO or with a Thoth.Json decoder, then parse into the domain type. See [parse-dont-validate](../parse-dont-validate/SKILL.md).

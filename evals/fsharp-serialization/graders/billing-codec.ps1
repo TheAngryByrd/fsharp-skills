@@ -26,7 +26,7 @@ if (-not (Test-Path $source)) {
 
 function Get-Code([string]$Path) {
     $tokens = '(?m)^[ \t]*#load(?:[ \t]+@?"[^"\n]*")+|''(?:\\.|[^''\\\n])''|"""[\s\S]*?"""|@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|\(\*[\s\S]*?\*\)|//[^\n]*'
-    [regex]::Replace((Get-Content -Raw $Path), $tokens, {
+    [regex]::Replace("$(Get-Content -Raw $Path)", $tokens, {
             param($m)
             if ($m.Value.TrimStart().StartsWith('#load')) { $m.Value }
             elseif ($m.Value.StartsWith("'")) { "'c'" }
@@ -46,7 +46,7 @@ function Get-LoadedSources([string]$Path, [System.Collections.Generic.HashSet[st
     }
 }
 
-$seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$seen = [System.Collections.Generic.HashSet[string]]::new($(if ($IsWindows) { [StringComparer]::OrdinalIgnoreCase } else { [StringComparer]::Ordinal }))
 $seen.Add([IO.Path]::GetFullPath($domain)) | Out-Null
 $sources = @(Get-LoadedSources $source $seen)
 $code = ($sources | ForEach-Object { (Get-Code $_) -replace '(?m)^[ \t]*#load\b.*$', '' }) -join "`n"

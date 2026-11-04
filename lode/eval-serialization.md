@@ -46,7 +46,7 @@ The text check reads only `Codec.fsx` and the files that it loads with `#load`, 
 `graders/billing-codec.ps1` copies the workspace, restores the original `Domain.fsx` and samples, writes its own `global.json`, and runs `graders/CodecProbe.fsx` with `dotnet fsi`.
 The probe opens `Codec` before `Domain` and gives each expected value a type annotation, so a DTO record with the domain labels cannot capture the probe's record literals.
 The probe compares decoded values with F# values, and compares encoded JSON with each sample through `JsonNode.DeepEquals`. Property order is ignored, numbers compare by value, and a `null` property differs from an absent property.
-The probe calls the agent's functions inside `try`, so a thrown exception fails the check and does not stop the probe. The probe prints `PROBE-END` last, and the check 'The probe runs to the end' fails when an `exit` in the agent's code stops the probe early. A `NullReferenceException` from `WhenWritingNull` with a missing `int` is one such case.
+The probe calls the agent's functions inside `try`, so a thrown exception fails the check and does not stop the probe. A `NullReferenceException` from `WhenWritingNull` with a missing `int` is one such case. The probe prints `PROBE-END` last, and the check 'The probe runs to the end' fails when an `exit` in the agent's code stops the probe early.
 
 ```mermaid
 flowchart LR
@@ -71,7 +71,8 @@ flowchart LR
 | Edited `Domain.fsx` | `Domain.fsx is unchanged` |
 | `JsonObject` in the codec, `JsonDocument` in a file loaded with a normal or a verbatim path | The text check |
 | One options value for customers and orders | The four customer checks |
-| `WhenWritingNull` | Missing `id` and `reserved` (read as `null`) and a line without `quantity` (throws `NullReferenceException`) |
+| `WhenWritingNull` | Missing `id`, `reserved`, `last4`, `expiry`, and gift card `code` (read as `null`), and a line without `quantity` (throws `NullReferenceException`) |
+| DTO without per-field `null` checks | A line without `sku`, a `null` `sku`, a `null` line item, and a card or gift card without `last4`, `expiry`, or `code` |
 | DTO that reads a missing `reserved` as empty | Missing and `null` `reserved` |
 | `decodeCustomer` that returns `Result<Customer, exn>` | The compile check |
 | `exit 0` in `decodeOrder` for an unknown payment kind | The probe runs to the end, and every later check is missing |
@@ -81,16 +82,16 @@ The text check does not find a parser that reads JSON with string functions or r
 The comment removal does not nest `(* *)` comments, so a nested comment can hide a type name from the check or show one to it.
 The text check does not follow `#I` search paths, and it reads a `#load` inside an inactive `#if` block. Both need an F# preprocessor. The task is one script, and no eval run used them.
 The prompt names `JsonNode` but not its subtypes `JsonObject`, `JsonArray`, and `JsonValue`. The text check rejects all four.
-The `checkError` cases do not cover a missing `status`, `payment`, or `sku`.
+The `checkError` cases cover each required property: `id`, `status`, `payment` and its `kind` and data, `lines` and each line's `sku` and `quantity`, a `null` line item, and `reserved`.
 
 ## Eval results on issue 12
 
-The runs used explicit invocation and the final grader (`grade-evals.ps1`). Each run with the skill loaded it. opencode used free models, as the maintainer asked.
+The runs used explicit invocation. `grade-evals.ps1` graded every stored run again with the grader at the head of PR #19 (37 checks). Each run with the skill loaded it. opencode used free models, as the maintainer asked.
 
 | Target | Mode | Counted runs | Pass rate | Turns | Failed builds |
 | --- | --- | --- | --- | --- | --- |
 | claude:sonnet (claude-sonnet-5-5) | with | 2 | 100% | 8.5 | 0.0 |
-| claude:sonnet (claude-sonnet-5-5) | without | 2 | 91% | 18.5 | 2.0 |
+| claude:sonnet (claude-sonnet-5-5) | without | 2 | 89% | 18.5 | 2.0 |
 | codex (gpt-6.1-sol, effort high; default from config, not recorded in run.json) | with | 2 | 100% | 16.0 | 0.0 |
 | codex (gpt-6.1-sol, effort high; default from config, not recorded in run.json) | without | 2 | 100% | 20.5 | 1.5 |
 | opencode:opencode/deepseek-v4.1-flash-free | with | 2 | 100% | 25.0 | 5.5 |
@@ -100,11 +101,11 @@ The runs used explicit invocation and the final grader (`grade-evals.ps1`). Each
 
 Models: `claude:sonnet` ran `claude-sonnet-5-5`, read from the `model` field of each transcript. The plain `codex` target ran the Codex default from `~/.codex/config.toml` (`gpt-6.1-sol`, `model_reasoning_effort = "high"`). `run.json` records an empty model for it. The opencode targets ran `deepseek-v4.1-flash-free` and `glm-5.3-flash-free` from the `opencode` provider. The opencode log confirms the deepseek model for each of the four deepseek sessions. The blocked glm run started no session.
 
-- Claude Sonnet without the skill used `WhenWritingNull` in both runs. A missing `id` then decoded as `Ok` with `Id = null`, and a line without `quantity` threw. In one run, a missing `reserved` also decoded as `Ok` with `Reserved = null`. With the skill, both runs used `deserializeNullAsNone = true`.
+- Claude Sonnet without the skill used `WhenWritingNull` in both runs. A missing `id` then decoded as `Ok` with `Id = null`, and a line without `quantity` threw. In run 1, a missing `reserved` also decoded as `Ok` with `Reserved = null`. In run 2, a card or gift card without `last4`, `expiry`, or `code` decoded as `Ok` with a `null` field. With the skill, both runs used `deserializeNullAsNone = true`.
 - In one earlier baseline run, Claude Sonnet without the skill used `WithSkippableOptionFields(SkippableOptionFields.Always)` and failed both `null` option checks.
 - Codex and deepseek used `deserializeNullAsNone = true` and `WithOverrides` in both modes. The skill reduced turns and failed builds for these targets, but not the pass rate.
-- The free opencode models hit the account limit "Free usage limit reached". `opencode run` then retries with no output until the 30-minute limit. The second deepseek run without the skill stopped after 4 turns with `Codec.fsx` unchanged (17/27 checks). Two glm runs with the skill started and produced empty transcripts, and no glm run finished. The glm runs without the skill did not start. These runs measure the quota, not the model, so the table does not count them. Issue #23 covers the retry of the free-model runs.
-- The Claude Sonnet and Codex runs used the skill before the PR review fixes. The opencode runs used the final skill. The fixes changed reference text and proof checks, not the rules.
+- The free opencode models hit the account limit "Free usage limit reached". `opencode run` then retries with no output until the 30-minute limit. The second deepseek run without the skill stopped after 4 turns with `Codec.fsx` unchanged (27/37 checks). Two glm runs with the skill started and produced empty transcripts, and no glm run finished. The glm runs without the skill did not start. These runs measure the quota, not the model, so the table does not count them. Issue #23 covers the retry of the free-model runs.
+- The Claude Sonnet and Codex runs used the skill before commit `303269b`. The opencode runs used the skill at commit `24239f3`. Since the Claude Sonnet and Codex runs, three rules in `SKILL.md` changed. Step 3 asks for one options value for each wire contract (`303269b`). The decode boundary rule names a single-case union around an option (`24239f3`). The `WhenWritingNull` rule adds `Map` (`876ed64`) and union case fields (the commit that adds the per-field `checkError` cases). Other fixes added proof checks and reference text.
 
 ```powershell
 pwsh ./evals/run-evals.ps1 -Skill fsharp-serialization -Target claude:sonnet,codex,opencode:opencode/deepseek-v4.1-flash-free,opencode:opencode/glm-5.3-flash-free -Runs 2

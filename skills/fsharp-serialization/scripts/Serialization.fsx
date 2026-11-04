@@ -13,6 +13,13 @@ let check name (expected: 'a) (actual: 'a) =
         failures <- failures + 1
         printfn "FAIL %s: expected %A, got %A" name expected actual
 
+let messageOf f =
+    try
+        f () |> ignore
+        ""
+    with ex ->
+        ex.Message
+
 let outcome f =
     try Ok(f ()) with ex -> Error(ex.GetType().Name)
 
@@ -58,6 +65,7 @@ let read<'T> (options: JsonSerializerOptions) (json: string) = outcome (fun () -
 let write (options: JsonSerializerOptions) value = JsonSerializer.Serialize(value, options)
 
 check "System.Text.Json throws on an F# union" (Error "NotSupportedException") (outcome (fun () -> write plain Point))
+check "The union exception says that F# unions are not supported" true ((messageOf (fun () -> write plain Point)).StartsWith "F# discriminated union serialization is not supported.")
 check "System.Text.Json writes Some 3 as 3 and None as null" ("3", "null") (write plain (Some 3), write plain (None: int option))
 check "System.Text.Json fills missing record fields with null and 0" (Ok { Sensor = null; Value = 0; Unit = None }) (read<Reading> plain "{}")
 check "RespectRequiredConstructorParameters rejects missing record fields" (Error "JsonException") (read<Reading> (JsonSerializerOptions(RespectRequiredConstructorParameters = true)) "{}")
@@ -75,6 +83,8 @@ check "FSharp.SystemTextJson unwraps a single-case union" "\"x\"" (write fsharp 
 check "FSharp.SystemTextJson rejects a missing option field by default" (Error "JsonException") (read<Reading> fsharp """{"Sensor":"t1","Value":3}""")
 check "FSharp.SystemTextJson rejects a missing required field" (Error "JsonException") (read<Reading> fsharp """{"Value":3,"Unit":null}""")
 check "FSharp.SystemTextJson rejects the JSON null for a record" (Error "JsonException") (read<Reading> fsharp "null")
+check "FSharp.SystemTextJson rejects the JSON null for a union" (Error "JsonException") (read<Shape> fsharp "null")
+check "The missing-field exception names the field" true ((messageOf (fun () -> JsonSerializer.Deserialize<Reading>("""{"Value":3,"Unit":null}""", fsharp))).EndsWith ": Sensor")
 check "FSharp.SystemTextJson rejects an unknown union case" (Error "JsonException") (read<Shape> fsharp """{"Case":"Hexagon"}""")
 check "FSharp.SystemTextJson ignores an unknown property" (Ok { Sensor = "t1"; Value = 3; Unit = None }) (read<Reading> fsharp """{"Sensor":"t1","Value":3,"Unit":null,"Extra":1}""")
 check "FSharp.SystemTextJson writes None as null by default" """{"Sensor":"t1","Value":3,"Unit":null}""" (write fsharp { Sensor = "t1"; Value = 3; Unit = None })
@@ -95,6 +105,7 @@ let ignoreNull = JsonFSharpOptions.Default().ToJsonSerializerOptions(DefaultIgno
 check "WhenWritingNull leaves out None" """{"Sensor":"t1","Value":3}""" (write ignoreNull { Sensor = "t1"; Value = 3; Unit = None })
 check "WhenWritingNull reads a null option field as None" (Ok { Sensor = "t1"; Value = 3; Unit = None }) (read<Reading> ignoreNull """{"Sensor":"t1","Value":3,"Unit":null}""")
 check "WhenWritingNull reads a missing required string as null" (Ok { Sensor = null; Value = 3; Unit = None }) (read<Reading> ignoreNull """{"Value":3}""")
+check "WhenWritingNull reads a missing union case field as null" (Ok(Text null)) (read<Tagged> (JsonFSharpOptions.Default().WithUnionInternalTag().WithUnionNamedFields().WithUnionTagName("type").ToJsonSerializerOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)) """{"type":"Text"}""")
 check "WhenWritingNull reads a missing required map as null" true (match read<{| Name: string; Counts: Map<string, int> |}> ignoreNull """{"Name":"a"}""" with Ok r -> isNull (box r.Counts) | _ -> false)
 check "WhenWritingNull throws NullReferenceException for a missing int" (Error "NullReferenceException") (read<Reading> ignoreNull """{"Sensor":"t1"}""")
 
@@ -153,6 +164,10 @@ check "FSharp.SystemTextJson rejects null for a list field" (Error "JsonExceptio
 check "FSharp.SystemTextJson rejects a null list item of records" (Error "JsonException") (read<Shelf> fsharp """{"Items":[null],"Label":"a"}""")
 check "RespectNullableAnnotations does not reject null for an F# string field in a script" (Ok { Sensor = null; Value = 3; Unit = None }) (read<Reading> (JsonSerializerOptions(RespectNullableAnnotations = true)) """{"Sensor":null,"Value":3}""")
 
+type LevelReordered =
+    | High
+    | Low
+
 type ReadingV2 =
     { Sensor: string
       Value: int
@@ -160,6 +175,9 @@ type ReadingV2 =
       Site: string }
 
 check "A new required field rejects JSON saved before the change" (Error "JsonException") (read<ReadingV2> skippableNull """{"Sensor":"t1","Value":3}""")
+check "A new union case reads JSON saved before the change" (Ok Level.Low) (read<Level> fsharp """{"Case":"Low"}""")
+check "Reordered record fields read JSON saved before the change" (Ok { Sensor = "t1"; Value = 3; Unit = None }) (read<Reading> skippableNull """{"Unit":null,"Value":3,"Sensor":"t1"}""")
+check "Reordered union cases read JSON saved before the change" (Ok LevelReordered.Low) (read<LevelReordered> fsharp """{"Case":"Low"}""")
 check "A changed field type rejects JSON saved before the change" (Error "JsonException") (read<Reading> skippableNull """{"Sensor":"t1","Value":"3"}""")
 check "A renamed union case rejects JSON saved before the change" (Error "JsonException") (read<Level> fsharp """{"Case":"Medium"}""")
 
