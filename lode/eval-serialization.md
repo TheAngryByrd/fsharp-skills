@@ -87,14 +87,16 @@ The runs used explicit invocation and the final grader (`grade-evals.ps1`). Each
 
 | Target | Mode | Counted runs | Pass rate | Turns | Failed builds |
 | --- | --- | --- | --- | --- | --- |
-| claude:sonnet | with | 2 | 100% | 8.5 | 0.0 |
-| claude:sonnet | without | 2 | 91% | 18.5 | 2.0 |
-| codex | with | 2 | 100% | 16.0 | 0.0 |
-| codex | without | 2 | 100% | 20.5 | 1.5 |
+| claude:sonnet (claude-sonnet-5-5) | with | 2 | 100% | 8.5 | 0.0 |
+| claude:sonnet (claude-sonnet-5-5) | without | 2 | 91% | 18.5 | 2.0 |
+| codex (gpt-6.1-sol, effort high; default from config, not recorded in run.json) | with | 2 | 100% | 16.0 | 0.0 |
+| codex (gpt-6.1-sol, effort high; default from config, not recorded in run.json) | without | 2 | 100% | 20.5 | 1.5 |
 | opencode:opencode/deepseek-v4.1-flash-free | with | 2 | 100% | 25.0 | 5.5 |
 | opencode:opencode/deepseek-v4.1-flash-free | without | 1 | 100% | 29.0 | 11.0 |
 | opencode:opencode/glm-5.3-flash-free | with | 0 | - | - | - |
 | opencode:opencode/glm-5.3-flash-free | without | 0 | - | - | - |
+
+Models: `claude:sonnet` ran `claude-sonnet-5-5`, read from the `model` field of each transcript. The plain `codex` target ran the Codex default from `~/.codex/config.toml` (`gpt-6.1-sol`, `model_reasoning_effort = "high"`). `run.json` records an empty model for it. The opencode targets ran `deepseek-v4.1-flash-free` and `glm-5.3-flash-free` from the `opencode` provider. The opencode log confirms the deepseek model for each of the four deepseek sessions. The blocked glm run started no session.
 
 - Claude Sonnet without the skill used `WhenWritingNull` in both runs. A missing `id` then decoded as `Ok` with `Id = null`, and a line without `quantity` threw. In one run, a missing `reserved` also decoded as `Ok` with `Reserved = null`. With the skill, both runs used `deserializeNullAsNone = true`.
 - In one earlier baseline run, Claude Sonnet without the skill used `WithSkippableOptionFields(SkippableOptionFields.Always)` and failed both `null` option checks.
