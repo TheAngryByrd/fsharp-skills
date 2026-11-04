@@ -14,7 +14,7 @@ Supported agents:
 - Each agent CLI that you test, installed, on `PATH`, and signed in.
 - `git`, to make each workspace a repository. Codex and opencode stop the project skill search at the repository root.
 - For rubric checks, Claude Code (`claude`) signed in, or another judge command. See [Rubric checks](#rubric-checks).
-- The prerequisites of the skill's graders. The `fsharp-native-aot` graders need the .NET 10 SDK, NuGet access, and the Native AOT toolchain. Use `-SkipNative` without the toolchain. The `fsharp-nullness-interop` graders need the .NET 10 SDK and NuGet access. The `fsharp-env-capabilities` `startup-settings` grader needs the .NET 10 SDK and NuGet access for the `Microsoft.Extensions` 10.0.0 packages.
+- The prerequisites of the skill's graders. The `fsharp-native-aot` graders need the .NET 10 SDK, NuGet access, and the Native AOT toolchain. Use `-SkipNative` without the toolchain. The `fsharp-nullness-interop` graders need the .NET 10 SDK and NuGet access. The `fsharp-env-capabilities` `startup-settings` grader needs the .NET 10 SDK and NuGet access for the `Microsoft.Extensions` 10.0.0 packages. The `fsharp-library-api-design` graders need the .NET 10 SDK, and the `minor-release` grader runs `public-surface.ps1` from `skills/fsharp-signature-files`. Its grader tests need NuGet access.
 
 > [!CAUTION]
 > The runner starts agents without permission prompts: `--dangerously-skip-permissions`, `--sandbox danger-full-access`, and `--auto`. An agent can run any command as your user. Run evals only on a machine or container that you trust with that access.
@@ -255,6 +255,8 @@ pwsh ./evals/tests/Rubric.Tests.ps1
 | `fsharp-serialization` | `billing-codec` | A change to `Codec.fsx` so that orders follow a billing service JSON contract while stored customer JSON keeps its FSharp.SystemTextJson default shape. A grader probe decodes the three saved order samples and compares the parsed JSON that `encodeOrder` writes with each sample. It also checks `null` and absent optional values, unknown properties, missing or `null` required fields, unknown union tags, the JSON `null`, and malformed JSON. `decodeOrder` must return `Error` and not throw. The stored customer samples must decode and encode unchanged. A text check reads `Codec.fsx` and each file that it loads, without comments and string contents, and fails when the code names `JsonDocument`, `JsonNode`, `JsonObject`, `JsonArray`, `JsonValue`, `JsonElement`, `Utf8JsonReader`, `Utf8JsonWriter`, or `JsonConverter<`. |
 | `fsharp-binary-compatibility` | `shipping-1-1` | Version 1.1.0 of a library with an express price, a declared value, and a new `Held` status that the prompt puts in the middle of the lifecycle. The grader builds the released 1.0.0 source and `LegacyApp` against it. It copies the new `Shipping.dll` next to that consumer with no rebuild and runs it. The output must not change, with no `MissingMethodException`, `TypeLoadException`, or `MissingFieldException`. `apicompat` must find no break from 1.0.0. A `NewApp` that is rebuilt against 1.1.0 must print the new features, with no result value written in its source. A reflection probe must find the express price, the insured price, and a function that reads `HD` as `Held` in the new `Shipping.dll`, and `statusOf "HD"` must return `Held`. The transcript must show a command that ran package validation, `apicompat` on two versions, `sig-diff.ps1`, or two `--sig` builds: one of `release-1.0.0` and one of another folder. A command counts only when its output holds the tool's result text. |
 | `fsharp-binary-compatibility` | `feed-codes` | The same features and grader, with a hidden old consumer that the agent does not see. It also reads the code `HD`, which 1.0.0 reports as unknown. An existing function that starts to return `Held` changes that consumer's output. `Held` can be in any public union, in both tasks. `statusOf "HD"` does not have to return `Held`. |
+| `fsharp-library-api-design` | `minor-release` | Two features in an F# library released as 1.1.0: an optional idempotency key on `PaymentClient.Charge`, and `ChargeAll` for any sequence. The grader restores the original `Checkout` (F#, `TreatWarningsAsErrors`) and `CheckoutCs` (C#). Both must build against the new library and print the same output. Both must also run unchanged with the new DLL after a build against 1.0.0. No 1.0.0 public surface line may be removed, and new members must not take F#-only parameter types or return an option, function, or `Async`. Two C# probes check the features. |
+| `fsharp-library-api-design` | `classify-changes` | Ten proposed changes to the same library in `PROPOSED.md`. For each change, `answer.json` says whether `Checkout` and `CheckoutCs` (both with `TreatWarningsAsErrors`) fail to build or print a different output, whether their 1.0.0 builds fail with the changed DLL, and whether package validation reports an error. One check for each change compares the four answers with `classify-expected.json`. |
 
 Test the `startup-settings` grader against a known good result, the input with an `Options.Create` test, `ValidateOnStart` with no startup validator call, an app that prints only the first error, a `decimal` `FreeShippingOver` field, a test that fails when `appsettings.json` exists, a parser that rejects `FreeShippingOver` `0`, a parser that accepts `MaxWeightKg` `0`, a region check with no length rule, a region check that requires only a non-empty code, a `Carrier` check that rejects only `""`, and a parser that skips the `RatePerKg` and `FreeShippingOver` range rules:
 
@@ -272,6 +274,19 @@ Test the `fsharp-serialization` grader against a known good result, a `module Co
 
 ```powershell
 pwsh ./evals/fsharp-serialization/tests/Grader.Tests.ps1
+```
+
+Test the `minor-release` grader against a known good result, the original input, and five breaking changes. Test the `classify-changes` grader against a correct answer, common mistakes, a string value, a missing change, and no answer:
+
+```powershell
+pwsh ./evals/fsharp-library-api-design/tests/Grader.Tests.ps1
+pwsh ./evals/fsharp-library-api-design/tests/Classify.Tests.ps1
+```
+
+Measure each expected value in `classify-expected.json` on real builds. The script applies each change to the input library, runs the `minor-release` grader for the source and binary results, and packs with package validation:
+
+```powershell
+pwsh ./evals/fsharp-library-api-design/tests/Classify.Expected.Tests.ps1
 ```
 
 Test both `fsharp-verify-api` graders against a known good result, the stub, old API code, and a package downgrade:

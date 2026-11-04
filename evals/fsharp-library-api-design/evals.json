@@ -1,0 +1,34 @@
+{
+  "skill": "fsharp-library-api-design",
+  "contaminationKeywords": [
+    "breaking change",
+    "binary compatib",
+    "API compatib",
+    "ApiCompat",
+    "package validation",
+    "public API"
+  ],
+  "tasks": [
+    {
+      "id": "minor-release",
+      "files": [
+        "inputs/Payments",
+        "inputs/Checkout",
+        "inputs/CheckoutCs"
+      ],
+      "grader": "graders/minor-release.ps1",
+      "prompt": "Payments/ is an F# library that we publish to NuGet. Version 1.0.0 is out. Checkout/ (F#) and CheckoutCs/ (C#) are two of its consumers. Other teams and other packages use it too.\n\nMake these two changes:\n\n1. Callers can pass an idempotency key as a second argument to PaymentClient.Charge, for example client.Charge(request, \"order-42\") in C#. Callers can also leave it out. When a PaymentClient gets a charge with a key that it already charged, it returns the first Receipt and does not call the gateway again. A charge without a key behaves as before.\n2. PaymentClient.ChargeAll must accept any sequence of requests, for example a C# array or a List<ChargeRequest>, not only an F# list.\n\nShip this as version 1.1.0, a minor release. Set the version in Payments/Payments.fsproj and add a 1.1.0 entry to Payments/RELEASE_NOTES.md. Do not change Checkout/ or CheckoutCs/."
+    },
+    {
+      "id": "classify-changes",
+      "files": [
+        "inputs/Payments",
+        "inputs/Checkout",
+        "inputs/CheckoutCs",
+        "inputs/PROPOSED.md"
+      ],
+      "grader": "graders/classify-changes.ps1",
+      "prompt": "Payments/ is an F# library that we publish to NuGet. Version 1.0.0 is out. Checkout/ (F#) and CheckoutCs/ (C#) are two of its consumers. Both build with TreatWarningsAsErrors.\n\nPROPOSED.md lists ten separate changes to 1.0.0. For each change, answer four questions about Checkout/ and CheckoutCs/ as they are now:\n\n- fsharpSource: does Checkout fail to build against the changed library, or print a different output when you run it?\n- csharpSource: does CheckoutCs fail to build against the changed library, or print a different output when you run it?\n- binary: build Checkout and CheckoutCs against 1.0.0. Then run each one with the changed Payments.dll and no rebuild. Does either one fail or print a different output?\n- packageValidation: does dotnet pack of the changed library, with EnablePackageValidation and PackageValidationBaselineVersion 1.0.0, report an error?\n\nWrite answer.json in this directory with this shape, with true where the answer is yes:\n\n{\"changes\": {\"<change id>\": {\"fsharpSource\": true, \"csharpSource\": false, \"binary\": false, \"packageValidation\": false}}}\n\nGive an entry for each change id in PROPOSED.md. Judge each change alone. You can change the projects to test a change, but answer.json is the only result that counts."
+    }
+  ]
+}
