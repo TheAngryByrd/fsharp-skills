@@ -1,0 +1,11 @@
+{
+  "id": "ORD-1001",
+  "status": "shipped",
+  "payment": { "kind": "card", "last4": "4242", "expiry": "12/27" },
+  "lines": [
+    { "sku": "BOLT-M6", "quantity": 40, "note": "zinc plated" },
+    { "sku": "NUT-M6", "quantity": 40 }
+  ],
+  "discount": 2.5,
+  "reserved": { "12": 3, "7": 1 }
+}

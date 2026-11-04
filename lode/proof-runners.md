@@ -69,6 +69,10 @@ The runner checks each outcome in `Proofs.fsx` and fails on a mismatch. It also 
 
 `FailurePaths.fsx` compares each outcome with an expected value and exits with code 1 on a mismatch. The failure-path runner has no compile-time break tests and prints no inferred signatures.
 
+## Serialization
+
+`Serialization.fsx` compares each System.Text.Json and FSharp.SystemTextJson 1.4.36 result with an expected value and exits with code 1 on a mismatch. It also runs one Thoth.Json.System.Text.Json 0.5.0 decoder and encoder. The references in `skills/fsharp-serialization/references/` quote these results, so update the references when a package upgrade changes a result.
+
 ## Idiom review
 
 The idiom review runner checks that each before form in `Idioms.fsx` gives the same result as its after form, and that `static member X = expr` runs `expr` on each access.

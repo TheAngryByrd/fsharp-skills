@@ -8,6 +8,7 @@
 - [eval-design.md](eval-design.md): eval task and grader design.
 - [eval-effort-metrics.md](eval-effort-metrics.md): turns and failed builds, with reasons and lessons.
 - [eval-rubric.md](eval-rubric.md): rubric invariants and design lessons.
+- [eval-serialization.md](eval-serialization.md): the `fsharp-serialization` task, grader, and results.
 - [agent-fsharp-failures.md](agent-fsharp-failures.md): ranked evidence of agent F# failures and the skill for each area.
 - [evals/README.md](../evals/README.md): eval runner usage, grader contract, effort metric rules, and rubric contract (outside the Lode).
 - `plans/`: roadmaps and open work.
@@ -29,8 +30,10 @@ flowchart TD
     Index --> EvalDesign[Eval design]
     Index --> EffortMetrics[Eval effort metrics]
     Index --> Rubric[Eval rubric]
+    Index --> Serialization[Serialization eval]
     Index --> Failures[Agent F# failure evidence]
     EvalDesign --> EvalsReadme[evals/README.md]
     EffortMetrics --> EvalsReadme
     Rubric --> EvalsReadme
+    Serialization --> EvalsReadme
 ```

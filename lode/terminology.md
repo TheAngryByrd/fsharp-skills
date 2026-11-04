@@ -25,6 +25,8 @@
 - Settings DTO - A `[<CLIMutable>]` record that the configuration binder fills. Only the composition root reads it. A parse function turns it into the validated settings type.
 - Composition root - The startup code that reads configuration, builds the container, and builds the env. It is the only code that can use `IOptions<T>` or `IConfiguration`.
 - Reference solution - A fast implementation that a grader owns. A performance check runs it in the same process as the agent's code and sets its allocation and time limits from it.
+- Wire contract - The JSON shape that another service or a stored record expects for each type: property names, union shape, optional and required fields, and unknown properties.
+- Saved sample - A JSON file that another service or an older version of the code wrote. Tests decode it and compare the encoded value with it. A sample regenerated from new code is not a saved sample.
 - Silent data loss - Native exe output that has less content than the JIT output, with no exception.
 
 Use these terms consistently in the Lode, `evals/README.md`, and skill documentation. A failure alone does not prove the expected compiler constraint.

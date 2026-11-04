@@ -1,0 +1,19 @@
+{
+  "skill": "fsharp-serialization",
+  "contaminationKeywords": [
+    "System.Text.Json",
+    "FSharp.SystemTextJson",
+    "JSON serialization",
+    "serialize F#"
+  ],
+  "tasks": [
+    {
+      "id": "billing-codec",
+      "files": [
+        "inputs/billing/*"
+      ],
+      "grader": "graders/billing-codec.ps1",
+      "prompt": "Codec.fsx encodes and decodes our customers and orders with FSharp.SystemTextJson. The billing service now sends and accepts orders only in the shape that CONTRACT.md describes. Change Codec.fsx so that encodeOrder and decodeOrder follow CONTRACT.md. The files in samples/billing/ are orders that the billing service sent. Customers are stored in our database. The JSON in samples/customers/ must still decode, and encodeCustomer must keep writing the same JSON. Keep the signatures of the four functions. decodeOrder must return Error, not throw, for JSON that is not a valid order. Use JsonSerializer with FSharp.SystemTextJson. Do not read or write JSON by hand with JsonDocument, JsonNode, JsonElement, Utf8JsonReader, Utf8JsonWriter, or a custom JsonConverter. Do not change Domain.fsx. Codec.fsx must load with `dotnet fsi`."
+    }
+  ]
+}
