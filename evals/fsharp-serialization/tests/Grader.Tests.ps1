@@ -72,9 +72,9 @@ try {
     $testsFile = {
         param($ws)
         Set-Content (Join-Path $ws 'Tests.fsx') "#load ""Codec.fsx""`nopen System.Text.Json.Nodes`nlet same (a: string) (b: string) = JsonNode.DeepEquals(JsonNode.Parse a, JsonNode.Parse b)"
-        Add-Content (Join-Path $ws 'Codec.fsx') "`n// Do not parse JSON by hand with JsonDocument.`n(* JsonNode is not used here. Example:`n#load ""Tests.fsx""`n*)`n// #load ""Tests.fsx"""
+        Add-Content (Join-Path $ws 'Codec.fsx') ("`nlet private regressionJson = " + '"""{"note":"JsonNode // (* JsonDocument"}"""' + "`nlet private label = ""JsonElement""`n// Do not parse JSON by hand with JsonDocument.`n(* JsonNode is not used here. Example:`n#load ""Tests.fsx""`n*)`n// #load ""Tests.fsx""")
     }
-    Assert-Checks 'JsonNode in a test file and in comments' (Invoke-Case 'tests-file' 'good' $testsFile) (New-Expected @())
+    Assert-Checks 'JsonNode in a test file, comments, and strings' (Invoke-Case 'tests-file' 'good' $testsFile) (New-Expected @())
 
     $strictLines = {
         param($ws)
