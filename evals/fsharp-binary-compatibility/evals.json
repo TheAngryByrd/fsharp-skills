@@ -1,0 +1,33 @@
+{
+  "skill": "fsharp-binary-compatibility",
+  "contaminationKeywords": [
+    "binary compatib",
+    "apicompat",
+    "package validation",
+    "breaking change"
+  ],
+  "tasks": [
+    {
+      "id": "shipping-1-1",
+      "files": [
+        "inputs/Shipping",
+        "inputs/LegacyApp",
+        "inputs/NewApp",
+        "inputs/release-1.0.0"
+      ],
+      "grader": "graders/shipping-1-1.ps1",
+      "prompt": "Shipping/ is the F# library Contoso.Shipping. Version 1.0.0 is released. No package feed on this machine holds it, so release-1.0.0/ holds its released source. LegacyApp/ is an app that customers compiled against Shipping 1.0.0. They will replace Shipping.dll with version 1.1.0 and will not rebuild LegacyApp, so LegacyApp must keep working and print the same output with 1.1.0.\n\nMake version 1.1.0 of Shipping with these features:\n\n1. Express service: callers can ask for an express price. An express price is twice the standard price. The standard price does not change.\n2. Insurance: callers can give a declared value for a parcel. The insured price is the standard price plus 1% of the declared value, rounded to 2 decimals.\n3. Customs hold: a new parcel status Held, for a parcel that customs holds. In the parcel lifecycle it comes after InTransit and before Delivered. statusOf \"HD\" returns it.\n\nSet the Shipping version to 1.1.0. Do not change LegacyApp/ or release-1.0.0/.\n\nWrite NewApp/Program.fs. NewApp is compiled against Shipping 1.1.0. It must use the Shipping library to print exactly these lines:\n\nP1 standard 6.90\nP1 express 13.80\nP4 insured 13.50\nHD Held\n\nParcel P1 weighs 2.0 kg. Parcel P4 weighs 5.0 kg and has a declared value of 300.00."
+    },
+    {
+      "id": "feed-codes",
+      "files": [
+        "inputs/Shipping",
+        "inputs/LegacyApp",
+        "inputs/NewApp",
+        "inputs/release-1.0.0"
+      ],
+      "grader": "graders/feed-codes.ps1",
+      "prompt": "Shipping/ is the F# library Contoso.Shipping. Version 1.0.0 is released. No package feed on this machine holds it, so release-1.0.0/ holds its released source. Many customer apps were compiled against Shipping 1.0.0 and use its public types and functions. LegacyApp/ is one of them. The customers will replace Shipping.dll with version 1.1.0 and will not rebuild their apps, so each of these apps must keep working and print the same output with 1.1.0.\n\nThe tracking feed already sends the status code HD for a parcel that customs holds.\n\nMake version 1.1.0 of Shipping with these features:\n\n1. Express service: callers can ask for an express price. An express price is twice the standard price. The standard price does not change.\n2. Insurance: callers can give a declared value for a parcel. The insured price is the standard price plus 1% of the declared value, rounded to 2 decimals.\n3. Customs hold: a new parcel status Held. In the parcel lifecycle it comes after InTransit and before Delivered. Apps compiled against 1.1.0 must be able to read the code HD as Held.\n\nSet the Shipping version to 1.1.0. Do not change LegacyApp/ or release-1.0.0/.\n\nWrite NewApp/Program.fs. NewApp is compiled against Shipping 1.1.0. It must use the Shipping library to print exactly these lines:\n\nP1 standard 6.90\nP1 express 13.80\nP4 insured 13.50\nHD Held\n\nParcel P1 weighs 2.0 kg. Parcel P4 weighs 5.0 kg and has a declared value of 300.00."
+    }
+  ]
+}

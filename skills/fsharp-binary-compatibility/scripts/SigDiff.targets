@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup Condition="'$(SigDiffOutput)' != '' and '$(MSBuildProjectFullPath)' == '$(SigDiffProject)'">
+    <OtherFlags>$(OtherFlags) --sig:"$(SigDiffOutput)"</OtherFlags>
+  </PropertyGroup>
+</Project>

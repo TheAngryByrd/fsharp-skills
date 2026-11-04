@@ -1,0 +1,4 @@
+P1 standard 6.90
+P1 express 13.80
+P4 insured 13.50
+HD Held

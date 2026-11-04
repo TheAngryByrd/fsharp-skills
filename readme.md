@@ -1,7 +1,7 @@
 # F# skills
 
 Reusable instructions for AI agents working on F# code, packaged in the [Agent Skills format](https://agentskills.io/home).
-The skills cover domain design, dependency management, error composition, failure paths, idiomatic shape, async composition, API verification, compiler performance, Native AOT, .NET nullness interop, signature files, performance types, and JSON serialization.
+The skills cover domain design, dependency management, error composition, failure paths, idiomatic shape, async composition, API verification, compiler performance, Native AOT, .NET nullness interop, signature files, performance types, JSON serialization, and binary compatibility.
 
 ## Skills
 
@@ -20,6 +20,7 @@ The skills cover domain design, dependency management, error composition, failur
 | [fsharp-signature-files](skills/fsharp-signature-files/SKILL.md) | Adds `.fsi` files that expose only the API that other projects use, hides type representations behind constructor functions, fixes signature mismatches, and compares the public surface of the built assembly before and after. | Without guidance, an agent can keep the compiler's `--sig` output, which repeats every public member and hides nothing. A missing `RequireQualifiedAccess` in a `.fsi` is only a warning, and a doc comment that is only in the `.fs` leaves the XML file. The skill comes from a maintainer request, not from failure data. |
 | [fsharp-performance-types](skills/fsharp-performance-types/SKILL.md) | Chooses F# collections and types for run time and allocation: `list`, `array`, `ResizeArray`, `seq`, `Map` against `Dictionary`, single-pass loops, `voption`, struct tuples and records, and `StringBuilder` instead of `sprintf`. It measures allocated bytes and run time before and after with `GC.GetAllocatedBytesForCurrentThread` or BenchmarkDotNet. It links to `fsharp-idiom-review` for readable shape. | Agents write collection code that makes several passes, allocates on each element, or updates a `Map` in a loop. The compiler accepts it, and review evidence ranks collection efficiency among the strongest categories of human comments on agent F# code. A rewrite can also change the output: `ToString("F3")` follows the current culture and `sprintf` does not. |
 | [fsharp-serialization](skills/fsharp-serialization/SKILL.md) | Serializes F# records, unions, options, and maps to JSON that matches a wire contract. It covers System.Text.Json defaults, FSharp.SystemTextJson union encodings and option settings, Thoth.Json and DTO layers, and tests that round-trip saved JSON samples. | System.Text.Json throws on F# unions and reads missing fields as `null` or `0`. FSharp.SystemTextJson defaults write `Case` and `Fields`, and some option settings read `null` as `Some null` or a missing required field as `null`. These defects compile and can pass a round trip of the code's own output. |
+| [fsharp-binary-compatibility](skills/fsharp-binary-compatibility/SKILL.md) | Changes a published F# library so that apps compiled against the old version still run against the new DLL with no rebuild. It gives safe patterns for module functions, members, unions, records, interfaces, `inline`, literals, renames, and FSharp.Core, and runs package validation, `apicompat`, and an F# signature diff (`scripts/sig-diff.ps1`). | Agents check only that the solution builds, which proves source compatibility. F# `let` functions cannot have overloads, a union case in the middle silently changes old matches, and Release consumers copy small function bodies. The IL tools do not report several of these changes. The skill comes from a maintainer request, not from failure data. |
 
 The patterns can work together: the environment supplies capabilities, and IWSAM interfaces describe possible errors.
 
@@ -116,6 +117,10 @@ Use fsharp-serialization to make these F# event types match the JSON that the pa
 ```
 
 ```text
+Use fsharp-binary-compatibility to add a currency parameter to parsePrice in this library for a minor release, and check that apps built against 1.0.0 still run.
+```
+
+```text
 Use optimize-fsharp-typecheck-graph to measure this project's type-checking bottleneck and evaluate a compatible improvement.
 ```
 
@@ -155,6 +160,8 @@ The performance types skill includes a runner, `scripts/run.ps1`. It requires th
 The runner runs `scripts/Perf.fsx` with `dotnet fsi --optimize+` and measures the allocation, culture, and sort claims of the skill. It fails when a measured result differs from the claim.
 The serialization skill includes a runner, `scripts/run.ps1`. It requires the .NET 10 SDK, PowerShell 7.2 or later, and NuGet access for FSharp.SystemTextJson and Thoth.Json.
 The runner runs `scripts/Serialization.fsx` and fails when a System.Text.Json default, a FSharp.SystemTextJson setting, a wire compatibility result, or a Thoth.Json result differs from the expected result.
+The binary compatibility skill includes a project-based runner, `scripts/run.ps1`, and `scripts/sig-diff.ps1`, which diffs the F# signatures of two versions of a project. Both require the .NET 10 SDK, PowerShell 7.4 or later, and NuGet access.
+The runner builds each case's library versions and runs a consumer that was compiled against the baseline with the new DLL. It also rebuilds the consumer and runs `apicompat`, the signature diff, and PublicApiGenerator. It fails when a result differs from the expected line in the case. It then checks package validation, the FSharp.Core package dependency, the Roslyn analyzer claim, and `sig-diff.ps1`.
 
 The parsing and compiler-performance skills provide guidance. Apply their verification steps to the target project.
 
