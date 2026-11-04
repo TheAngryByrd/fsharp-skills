@@ -10,7 +10,10 @@ function Invoke-Case {
     $out = Join-Path $root "$Name/grade"
     New-Item -ItemType Directory -Force -Path $ws, $out | Out-Null
     Copy-Item (Join-Path $PSScriptRoot '../inputs/billing/*') $ws -Recurse -Force
-    if ($Codec) { Copy-Item (Join-Path $PSScriptRoot "$Codec/Codec.fsx") $ws }
+    if ($Codec) {
+        $text = (Get-Content -Raw (Join-Path $PSScriptRoot "$Codec/Codec.fsx")) -replace "`r`n", "`n"
+        [IO.File]::WriteAllText((Join-Path $ws 'Codec.fsx'), $text)
+    }
     if ($Edit) { & $Edit $ws }
     & (Join-Path $PSScriptRoot '../graders/billing-codec.ps1') -Workspace $ws -OutDir $out
     @(Get-Content -Raw (Join-Path $out 'grading.json') | ConvertFrom-Json)
