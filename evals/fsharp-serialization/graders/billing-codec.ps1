@@ -48,7 +48,7 @@ function Get-LoadedSources([string]$Path, [System.Collections.Generic.HashSet[st
 $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $seen.Add([IO.Path]::GetFullPath($domain)) | Out-Null
 $sources = @(Get-LoadedSources $source $seen)
-$code = ($sources | ForEach-Object { Get-Code $_ }) -join "`n"
+$code = ($sources | ForEach-Object { (Get-Code $_) -replace '(?m)^[ \t]*#load\b.*$', '' }) -join "`n"
 $byHand = @([regex]::Matches($code, '\b(JsonDocument|JsonNode|JsonObject|JsonArray|JsonValue|JsonElement|Utf8JsonReader|Utf8JsonWriter)\b|\bJsonConverter\s*<') | ForEach-Object Value | Sort-Object -Unique)
 $checks += New-Check 'The codec uses JsonSerializer and does not read or write JSON by hand' ($code -match 'JsonSerializer\.(Serialize|Deserialize)' -and $byHand.Count -eq 0) $(if ($byHand) { 'uses ' + ($byHand -join ', ') } else { '' })
 

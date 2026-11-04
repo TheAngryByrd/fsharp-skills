@@ -74,7 +74,8 @@ try {
         Set-Content (Join-Path $ws 'Tests.fsx') "#load ""Codec.fsx""`nopen System.Text.Json.Nodes`nlet same (a: string) (b: string) = JsonNode.DeepEquals(JsonNode.Parse a, JsonNode.Parse b)"
         Add-Content (Join-Path $ws 'Codec.fsx') ("`nlet private regressionJson = " + '"""{"note":"JsonNode // (* JsonDocument"}"""' + "`nlet private script = " + '"""' + "`n#load ""Tests.fsx""`n" + '"""' + "`nlet private label = ""JsonElement""`n// Do not parse JSON by hand with JsonDocument.`n(* JsonNode is not used here. Example:`n#load ""Tests.fsx""`n*)`n// #load ""Tests.fsx""")
         $codec = Join-Path $ws 'Codec.fsx'
-        Set-Content $codec ((Get-Content -Raw $codec).Replace('#load "Domain.fsx"', '#load "Domain.fsx" // See "Tests.fsx" for JsonNode comparisons.'))
+        Set-Content (Join-Path $ws 'JsonNode.fsx') "module JsonNodeNames`nlet sample = 1"
+        Set-Content $codec ((Get-Content -Raw $codec).Replace('#load "Domain.fsx"', "#load ""Domain.fsx"" // See ""Tests.fsx"" for JsonNode comparisons.`n#load ""JsonNode.fsx"""))
     }
     Assert-Checks 'JsonNode in a test file, comments, and strings' (Invoke-Case 'tests-file' 'good' $testsFile) (New-Expected @())
 
