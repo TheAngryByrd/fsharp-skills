@@ -67,9 +67,9 @@ let half (x: float) = x / 2.0        // 1.0.0
 let half (x: float) = x / 2.0 + 1.0  // changed
 ```
 
-`half` is not `inline`, but the F# compiler writes optimization data into the library DLL. An F# consumer that is built in Release copies small function bodies from that data. The old F# binary keeps the 1.0.0 body and prints the old result, with no error. The old C# binary calls the method and gets the new body.
+`half` is not `inline`, but an F# consumer that is built in Release copies its body from the optimization data in the library DLL (cross-assembly inlining). The old F# binary keeps the 1.0.0 body and prints the old result, with no error. The old C# binary calls the method and gets the new body.
 
-Safe alternative: build the library with `--nooptimizationdata` from its first release. Then an old F# binary gets the new body (SmallFunctionBodyChangeNoOptimizationData). The flag must be in the version that the consumer compiled against. It also stops cross-assembly inlining, so consumer code can be slower. Without the flag, tell F# consumers to build again after a body fix. The compiler decides which bodies to copy. In a test with SDK 10.0.403, it copied `half` but not `area` (a `match`), `count` (a `List.length` call), or `scale` (a record construction). Do not depend on this limit.
+Safe alternative: build the library with `--nooptimizationdata` from its first release. Then an old F# binary gets the new body (SmallFunctionBodyChangeNoOptimizationData). The flag must be in the version that the consumer compiled against. It also stops cross-assembly inlining, so consumer code can be slower. `inline` functions are still copied with the flag (InlineBodyChangeNoOptimizationData). Without the flag, tell F# consumers to build again after a body fix. The compiler decides which bodies to copy. In a test with SDK 10.0.403, it copied `half` but not `area` (a `match`), `count` (a `List.length` call), or `scale` (a record construction). Do not depend on this limit.
 
 ## GeneralizeParameter and WidenParameterType
 
@@ -155,7 +155,7 @@ Safe alternative: add the new module and keep the old one. Mark the old one `[<O
 let area shape = ...
 ```
 
-F# callers do not see a change. The compiled method is now `Area`, so C# fails with CS0117, old binaries throw `MissingMethodException`, and package validation reports CP0002. In `CompiledNameOnSmallFunction`, the attribute is on `half`. An old Release F# binary uses its copied body and gives the same output. Only the old C# binary throws.
+F# callers do not see a change. The compiled method is now `Area`, so C# fails with CS0117, old binaries throw `MissingMethodException`, and package validation reports CP0002. In `CompiledNameOnSmallFunction`, the attribute is on `half`. An old Release F# binary uses the body that cross-assembly inlining copied, and gives the same output. Only the old C# binary throws.
 
 Safe alternative: use `CompiledName` only on a new function.
 
