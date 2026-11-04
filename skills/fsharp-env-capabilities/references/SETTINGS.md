@@ -41,7 +41,7 @@ Consequences:
 
 - Bind to a `[<CLIMutable>]` DTO. Use `string` for a number, and convert it in the parser. A
   missing key is then `null`, not `0`. Text that does not convert becomes one more parser error.
-- A `Nullable<_>` number also tells a missing key from `0`. But text that does not convert throws
+- A `Nullable<_>` number also separates a missing key from `0`. But text that does not convert throws
   in the binder, before the parser runs, so the error list holds only that key.
 - Use arrays for lists. Do not put `option` or `list` in the DTO.
 - Treat every reference field as possibly `null`, including the DTO itself and nested records.
@@ -52,6 +52,21 @@ Consequences:
 Parse the DTO into the settings type and collect every error. The `validation` expression from
 FsToolkit.ErrorHandling runs each `and!` and keeps all errors. The `parse-dont-validate` skill
 covers private constructors for the parsed type.
+
+The DTO holds each number as `string`:
+
+```fsharp
+[<CLIMutable>]
+type RetryDto = { Attempts: string }
+
+[<CLIMutable>]
+type MailSettingsDto =
+    { Host: string
+      Port: string
+      From: string
+      Recipients: string[]
+      Retry: RetryDto }
+```
 
 ```fsharp
 let parse (dto: MailSettingsDto) : Result<MailSettings, string list> =
@@ -67,7 +82,7 @@ let parse (dto: MailSettingsDto) : Result<MailSettings, string list> =
         }
 ```
 
-The number fields are `string` in the DTO. One helper converts the text and reports the key:
+One helper converts the number text and reports the key:
 
 ```fsharp
 let private wholeNumber key (value: string) =
@@ -76,10 +91,10 @@ let private wholeNumber key (value: string) =
     | false, _ -> Error $"{key} must be a whole number, got '{value}'"
 ```
 
-`Port = "ten"` with no `Host` and no `From` gives all three errors:
+`Port = "ten"` and `Retry:Attempts = "x"`, with no `Host` and no `From`, give all four errors:
 
 ```text
-Error ["Host is required"; "Port must be a whole number, got 'ten'"; "From is required"; ...]
+Error ["Host is required"; "Port must be a whole number, got 'ten'"; "From is required"; "Retry:Attempts must be a whole number, got 'x'"]
 ```
 
 Name the configuration key in each error. The reader fixes `appsettings.json`, not the F# code.

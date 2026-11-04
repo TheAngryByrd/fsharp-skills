@@ -85,7 +85,7 @@ type at startup, and expose that type through an accessor.
 [scripts/Settings.fsx](scripts/Settings.fsx) checks each rule below.
 
 - Bind to a `[<CLIMutable>]` DTO that only the composition root reads. A missing key gives no error: an `int` binds as `0` and a `string` as `null`.
-- In the DTO, use `string` for a number and convert it in the parser, so that text that does not convert is one more error. A `Nullable<int>` or `int` field throws in the binder on such text, before the parser runs. Use `string[]` for a list. A `string list` field throws when the key is present. A `string option` field is `None` even when the key has a value.
+- In the DTO, use `string` for a number and convert it in the parser. Then text that does not convert is one more error. A `Nullable<int>` or `int` field throws in the binder on such text, before the parser runs. Use `string[]` for a list. A `string list` field throws when the key is present. A `string option` field is `None` even when the key has a value.
 - `section.Get<Dto>()` returns `null` for a missing section. `AddOptions<Dto>().Bind(section)` gives an instance with default fields. A missing nested record binds as `null` in both forms.
 - Parse the DTO with `parse: Dto -> Result<Settings, string list>`. Use `validation { let! ... and! ... }` so that the result holds every error. Name the configuration key in each error. For the parsed type, use the `parse-dont-validate` skill.
 - Stop the app before it does work. Either parse in the composition root and stop on `Error`, or register an `IValidateOptions<Dto>` that calls the parser and add `.ValidateOnStart()`.
