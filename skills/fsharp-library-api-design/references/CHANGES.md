@@ -178,6 +178,17 @@ member _.Send(message: string) : string = ...
 member this.Send(message: string, urgent: bool) : string = ...
 ```
 
-Calls do not break, old binaries still run, and package validation reports nothing. Use this pattern to add a parameter to a type member or to accept a wider parameter type.
+Calls do not break, old binaries still run, and package validation reports nothing. F# calls whose argument has no type annotation still build, because `int list` converts to `seq<int>` and the new `Send` takes two arguments. The C# build reports CS8917 and no CS0121 for `client.Send(null)`, because the new `Send` takes two arguments. The runner does not call `Total(null)`. Use this pattern to add a parameter to a type member or to accept a wider parameter type.
 
 One C# shape breaks: a method group with no delegate type. `var total = client.Total;` builds against 1.0.0 and fails with CS8917 against 1.1.0. The F# method group `let total = client.Total` still builds. Name each new overload in the release notes. The C# consumer of the runner stops at CS8917, so the runner does not prove a C# call to the new overload. The C# probes of the `minor-release` eval grader call overloads.
+
+## AddReferenceOverload
+
+```fsharp
+member _.Send(message: string) : string = ...
+member this.Send(address: System.Uri) : string = this.Send(string address) // new
+```
+
+`string` and `Uri` have no conversion between them, so a call that both overloads accept is ambiguous. C# `client.Send(null)` fails with CS0121. The F# function `let sendTo (client: Client) message = client.Send message` fails with FS0041, because `message` has no type annotation. Old binaries still run, and package validation reports nothing.
+
+Safe alternative: give the new member a new name, such as `SendTo(address: System.Uri)`.

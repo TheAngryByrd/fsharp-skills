@@ -83,7 +83,7 @@ It packs `scripts/V1` as the `FsApiDesignProofLib` 1.0.0 baseline into a local f
 // expect-package-validation: CP0002
 ```
 
-A binary result is `same`, `stale` (the old output, but a rebuilt consumer prints a new output, as for an `inline` body or a small function body in a Release F# consumer), `differs`, or the exception name. The consumers also take `Client.Total` as a method group, so the AddOverload case measures C# CS8917. The runner also reads the FSharp.Core dependency from the `.nuspec` of a default pack and of `scripts/LowestCore`, which pins FSharp.Core 6.0.7.
+A binary result is `same`, `stale` (the old output, but a rebuilt consumer prints a new output, as for an `inline` body or a small function body in a Release F# consumer), `differs`, or the exception name. The consumers also take `Client.Total` as a method group, so the AddOverload case measures C# CS8917. The F# consumer calls `Send` and `Total` through unannotated function parameters, and the C# consumer calls `Send(null)`, so the AddReferenceOverload case measures FS0041 and CS0121. The runner also reads the FSharp.Core dependency from the `.nuspec` of a default pack and of `scripts/LowestCore`, which pins FSharp.Core 6.0.7.
 
 ## Native AOT
 

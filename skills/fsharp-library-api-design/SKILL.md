@@ -12,7 +12,7 @@ A published library has two contracts:
 - **Binary compatibility:** an assembly that was compiled against 1.0.0 runs with 1.1.0.
   NuGet gives this case often. When package A was built against 1.0.0 and the app needs 1.1.0, A runs with 1.1.0 and is not compiled again.
 
-A minor or patch version must keep both contracts. A new overload on a type member is the one exception, because it breaks only a C# method group with no delegate type. A clean build of every consumer that you can see proves only source compatibility.
+A minor or patch version must keep both contracts. A new overload on a type member is the one exception when it makes no existing call ambiguous. It breaks a C# method group with no delegate type. A clean build of every consumer that you can see proves only source compatibility.
 Many F# breaking changes do not look like breaking changes. Some are source-only, and package validation does not report them.
 
 ## Changes and their results
@@ -36,13 +36,15 @@ Each row is a change to version 1.0.0 that [scripts/run.ps1](scripts/run.ps1) pr
 | Module renamed | FS0039 | CS0103 | TypeLoadException | CP0001 |
 | `[<CompiledName>]` added to an existing function | ok | CS0117 | MissingMethodException, except in an F# consumer that copied a small body | CP0002 |
 | `[<Obsolete>]` on a function | FS0044 | CS0618 | ok | not reported |
-| New overload on a type member | ok | CS8917 for a method group such as `var total = client.Total;` | ok | ok |
+| New overload on a type member (`seq<int>` beside `int list`, or one more parameter) | ok | CS8917 for a method group such as `var total = client.Total;` | ok | ok |
+| New overload with an unrelated reference type (`Send(System.Uri)` beside `Send(string)`) | FS0041 for an unannotated function parameter | CS0121 for `client.Send(null)` | ok | ok |
 
 Read [references/CHANGES.md](references/CHANGES.md) for each change with its code and its safe alternative.
 
 ## Rules
 
 - **Extend. Do not change.** Do not change the signature of a public function or member in a minor version. This includes a new optional parameter and a wider or generic parameter type. Add an overload on a type member, or add a new function next to the old one.
+- **Check overload resolution.** A new overload must not make an existing call ambiguous. When neither parameter type is a subtype of the other, as with `Uri` and `string`, a call that both accept is ambiguous. C# `client.Send(null)` then fails with CS0121. An F# call fails with FS0041 when the argument type is not known before the call, such as an unannotated function parameter. Use a new member name instead, or test these call shapes in an F# and a C# consumer, including `null` and a numeric literal.
 - **Overloads need a type.** A module function cannot have an overload. To give a module function a new parameter, add a function with a new name. Mark the old one `[<Obsolete("Use X.")>]` only in a major version. A consumer with `TreatWarningsAsErrors` fails with FS0044 or CS0618.
 - **Records:** a new field removes the old constructor and breaks each consumer that builds the record, including test code. When a record must grow, plan for it in the first version: expose a `create` function or a class with members. Use [fsharp-signature-files](../fsharp-signature-files/SKILL.md) to hide a representation.
 - **Unions:** a new case is a breaking change for each consumer that matches on the union. Old binaries throw `MatchFailureException` when they get the new case. Release a new case in a major version, or hide the representation before the first release.
@@ -74,8 +76,8 @@ Use SemVer for each change type:
 
 | Version | Allowed changes |
 |---|---|
-| Major | Any break in the table above, in F# source, C# source, or binary form. This includes a new `[<Obsolete>]`, because a consumer with `TreatWarningsAsErrors` fails. A new overload is the exception: it stays minor, and the release notes name it. |
-| Minor | New types, new functions, new overloads, and new members on classes. |
+| Major | Any break in the table above, in F# source, C# source, or binary form. This includes a new `[<Obsolete>]`, because a consumer with `TreatWarningsAsErrors` fails. A new overload that makes no existing call ambiguous is the exception: it stays minor, and the release notes name it. |
+| Minor | New types, new functions, new overloads that make no existing call ambiguous, and new members on classes. |
 | Patch | Fixes that do not change the public surface. A fix to an `inline` body, or to a small function body without `--nooptimizationdata`, reaches F# callers only when they build again. Say so in the release notes. |
 
 Set the lowest FSharp.Core version that the library needs. By default, the package depends on the FSharp.Core version of the SDK (10.1.403 with SDK 10.0.403), and each consumer must then use that version or a later one. The proof pins FSharp.Core 6.0.7 in a `netstandard2.0` library. An older FSharp.Core can lack functions that the code uses, so build the library with the pin:
@@ -103,7 +105,7 @@ A higher minimum FSharp.Core forces consumers to upgrade. Name each increase in 
 
    `dotnet pack` then fails with CP0001, CP0002, or CP0006 when a type or member signature of 1.0.0 is gone or changed. It does not report F#-only source breaks, a new union case, or a changed function body.
 4. Check both contracts with the consumers that you have:
-   - Source: build each F# and C# consumer, with its tests, against the new library.
+   - Source: build each F# and C# consumer, with its tests, against the new library. For a new overload, also build the call shapes from the overload rule above.
    - Binary: build each consumer against the old version. Copy the new library DLL, and each new dependency DLL, into its output folder. Run the consumer. The output must not change.
 5. Compare the public surface with the snapshot. Each removed or changed line is a break. Each added line that C# calls must follow the C#-friendly rules above.
 6. Set the version and write a release notes entry that names each addition, each `[<Obsolete>]`, and each FSharp.Core change.
