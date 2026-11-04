@@ -95,6 +95,7 @@ let ignoreNull = JsonFSharpOptions.Default().ToJsonSerializerOptions(DefaultIgno
 check "WhenWritingNull leaves out None" """{"Sensor":"t1","Value":3}""" (write ignoreNull { Sensor = "t1"; Value = 3; Unit = None })
 check "WhenWritingNull reads a null option field as None" (Ok { Sensor = "t1"; Value = 3; Unit = None }) (read<Reading> ignoreNull """{"Sensor":"t1","Value":3,"Unit":null}""")
 check "WhenWritingNull reads a missing required string as null" (Ok { Sensor = null; Value = 3; Unit = None }) (read<Reading> ignoreNull """{"Value":3}""")
+check "WhenWritingNull reads a missing required map as null" true (match read<{| Name: string; Counts: Map<string, int> |}> ignoreNull """{"Name":"a"}""" with Ok r -> isNull (box r.Counts) | _ -> false)
 check "WhenWritingNull throws NullReferenceException for a missing int" (Error "NullReferenceException") (read<Reading> ignoreNull """{"Sensor":"t1"}""")
 
 let camel = JsonFSharpOptions.Default().WithUnionInternalTag().WithUnionNamedFields().ToJsonSerializerOptions(PropertyNamingPolicy = JsonNamingPolicy.CamelCase)
@@ -196,6 +197,7 @@ let shapeDecoder: Decoder<Shape> =
     Decode.field "shape" Decode.string
     |> Decode.andThen (function
         | "circle" -> Decode.field "radius" Decode.float |> Decode.map Circle
+        | "square" -> Decode.field "side" Decode.float |> Decode.map Square
         | "point" -> Decode.succeed Point
         | other -> Decode.fail $"unknown shape {other}")
 
@@ -208,6 +210,7 @@ let encodeShape shape =
 check "A Thoth.Json decoder reads its wire shape" (Ok(Circle 2.0)) (Decode.fromString shapeDecoder """{"shape":"circle","radius":2}""")
 check "A Thoth.Json decoder returns Error for an unknown shape" true (Decode.fromString shapeDecoder """{"shape":"hexagon"}""" |> Result.isError)
 check "A Thoth.Json decoder returns Error for malformed JSON" true (Decode.fromString shapeDecoder """{"shape":""" |> Result.isError)
+check "A Thoth.Json decoder reads each shape that the encoder writes" (Ok [ Circle 2.0; Square 3.0; Point ]) ([ Circle 2.0; Square 3.0; Point ] |> List.map (encodeShape >> Encode.toString 0 >> Decode.fromString shapeDecoder) |> List.fold (fun acc r -> match acc, r with Ok xs, Ok x -> Ok(xs @ [ x ]) | Error e, _ | _, Error e -> Error e) (Ok []))
 check "A Thoth.Json encoder writes the same wire shape" """{"shape":"point"}""" (Encode.toString 0 (encodeShape Point))
 
 if failures > 0 then exit 1

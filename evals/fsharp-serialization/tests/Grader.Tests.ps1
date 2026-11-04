@@ -45,6 +45,8 @@ $names = @(
     'A null required id returns Error'
     'A line without quantity returns Error'
     'A missing lines property returns Error'
+    'A missing reserved property returns Error'
+    'A null reserved property returns Error'
     'An unknown payment kind returns Error'
     'An unknown status returns Error'
     'The JSON null returns Error'
@@ -81,6 +83,22 @@ try {
     }
     Assert-Checks 'DTO that rejects unknown line properties' (Invoke-Case 'strict-lines' 'dto' $strictLines) (New-Expected @('Unknown properties in a line and in the payment are ignored'))
 
+    $emptyReserved = {
+        param($ws)
+        $codec = Join-Path $ws 'Codec.fsx'
+        Set-Content $codec ((Get-Content -Raw $codec).Replace('required "reserved" dto.Reserved', 'Ok(if isNull dto.Reserved then Dictionary<int, int>() else dto.Reserved)'))
+    }
+    Assert-Checks 'DTO that reads a missing reserved as empty' (Invoke-Case 'empty-reserved' 'dto' $emptyReserved) (New-Expected @('A missing reserved property returns Error', 'A null reserved property returns Error'))
+
+    $exnCustomer = {
+        param($ws)
+        $codec = Join-Path $ws 'Codec.fsx'
+        $text = (Get-Content -Raw $codec).Replace('let decodeCustomer (json: string) : Result<Customer, string> =', 'let decodeCustomer (json: string) : Result<Customer, exn> =')
+        $text = $text.Replace("Ok(JsonSerializer.Deserialize<Customer>(json, options))`n    with :? JsonException as ex ->`n        Error ex.Message", "Ok(JsonSerializer.Deserialize<Customer>(json, options))`n    with :? JsonException as ex ->`n        Error(ex :> exn)")
+        Set-Content $codec $text
+    }
+    Assert-Checks 'decodeCustomer with an exn error' (Invoke-Case 'exn-customer' 'good' $exnCustomer) @{ ($names[0]) = $true; ($names[1]) = $true; ($names[2]) = $false }
+
     Assert-Checks 'original input' (Invoke-Case 'input') (New-Expected (@($names[3..11]) + 'No encoded order has a Case or Fields property'))
 
     $noCodec = { param($ws) Remove-Item (Join-Path $ws 'Codec.fsx') }
@@ -110,6 +128,7 @@ try {
     Assert-Checks 'WhenWritingNull' (Invoke-Case 'when-writing-null' 'when-writing-null') (New-Expected @(
             'A missing required id returns Error'
             'A line without quantity returns Error'
+            'A missing reserved property returns Error'
         ))
 
     Assert-Checks 'default skippable options' (Invoke-Case 'skippable-default' 'skippable-default') (New-Expected @(

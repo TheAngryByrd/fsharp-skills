@@ -82,4 +82,5 @@ A DTO is a record or class whose shape equals the wire shape. Serialize the DTO,
 
 - Use a DTO when the domain type has private constructors, when two services need two shapes of one type, or when converter settings cannot express the shape.
 - Map from the DTO with a parse function that returns `Result`. Check each required field for `null`, because System.Text.Json fills a missing field with `null` or `0`.
+- Give each required value-type field a `Nullable<int>` or `int option` type in the DTO. A missing `int` field reads as `0`, and the parse step cannot see that it is missing.
 - Keep the DTO in the module that owns the wire format. Domain code does not use it.

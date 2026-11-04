@@ -89,7 +89,7 @@ A value boxed as `obj` does not get its override. Serialize the typed value.
 | `WithSkippableOptionFields(SkippableOptionFields.Always, deserializeNullAsNone = true)` | Left out | `None` | `None` |
 | `ToJsonSerializerOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)` | Left out | `None` | `None` |
 
-`WhenWritingNull` also changes required fields. A missing `string` reads as `null`, and a missing `int` throws `NullReferenceException`.
+`WhenWritingNull` also changes required fields. A missing `string` or `Map` reads as `null`, and a missing `int` throws `NullReferenceException`.
 `ValueSome 1` writes `1`. `ValueNone` writes `null` by default and is left out with skippable option fields.
 `Some None` writes `null`, so an option of an option cannot round-trip.
 `Box None`, where `type Box = Box of int option`, writes `null`. At the top level and as a list item, it reads back as a `null` union.

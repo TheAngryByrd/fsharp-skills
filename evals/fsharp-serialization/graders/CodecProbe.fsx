@@ -110,6 +110,8 @@ checkError "A missing required id returns Error" """{"status":"pending","payment
 checkError "A null required id returns Error" """{"id":null,"status":"pending","payment":{"kind":"cash"},"lines":[],"reserved":{}}"""
 checkError "A line without quantity returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"cash"},"lines":[{"sku":"BOLT-M6"}],"reserved":{}}"""
 checkError "A missing lines property returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"cash"},"reserved":{}}"""
+checkError "A missing reserved property returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"cash"},"lines":[]}"""
+checkError "A null reserved property returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"cash"},"lines":[],"reserved":null}"""
 checkError "An unknown payment kind returns Error" """{"id":"ORD-9","status":"pending","payment":{"kind":"crypto","wallet":"x"},"lines":[],"reserved":{}}"""
 checkError "An unknown status returns Error" """{"id":"ORD-9","status":"lost","payment":{"kind":"cash"},"lines":[],"reserved":{}}"""
 checkError "The JSON null returns Error" "null"
@@ -134,7 +136,7 @@ let bo: Customer = { Name = "Bo Chen"; Tier = Basic; Email = None }
 
 for (file, customer) in [ "ann.json", ann; "bo.json", bo ] do
     let json = savedCustomer file
-    let decoded = attempt (fun () -> decodeCustomer json)
+    let decoded: Result<Result<Customer, string>, exn> = attempt (fun () -> decodeCustomer json)
     report $"Stored customer {file} decodes to the same customer" (decoded = Ok(Ok customer)) (sprintf "%A" decoded)
     match attempt (fun () -> encodeCustomer customer) with
     | Ok written -> report $"encodeCustomer still writes the {file} shape" (sameJson json written) written

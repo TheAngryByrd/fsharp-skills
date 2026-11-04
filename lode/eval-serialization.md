@@ -71,13 +71,15 @@ flowchart LR
 | Edited `Domain.fsx` | `Domain.fsx is unchanged` |
 | `JsonObject` in the codec, `JsonDocument` in a loaded file | The text check |
 | One options value for customers and orders | The four customer checks |
-| `WhenWritingNull` | Missing `id` (reads as `null`) and a line without `quantity` (throws `NullReferenceException`) |
+| `WhenWritingNull` | Missing `id` and `reserved` (read as `null`) and a line without `quantity` (throws `NullReferenceException`) |
+| DTO that reads a missing `reserved` as empty | Missing and `null` `reserved` |
+| `decodeCustomer` that returns `Result<Customer, exn>` | The compile check |
 | `WithSkippableOptionFields()` | `null` note (reads as `Some null`) and `null` discount (throws) |
 
 The text check does not find a parser that reads JSON with string functions or regular expressions.
 The comment removal does not nest `(* *)` comments, so a nested comment can hide a type name from the check or show one to it.
 The prompt names `JsonNode` but not its subtypes `JsonObject`, `JsonArray`, and `JsonValue`. The text check rejects all four.
-The `checkError` cases do not cover a missing `status`, `payment`, `reserved`, or `sku`.
+The `checkError` cases do not cover a missing `status`, `payment`, or `sku`.
 
 ## Eval results on issue 12
 
@@ -86,7 +88,7 @@ The runs used explicit invocation and the final grader (`grade-evals.ps1`). Each
 | Target | Mode | Counted runs | Pass rate | Turns | Failed builds |
 | --- | --- | --- | --- | --- | --- |
 | claude:sonnet | with | 2 | 100% | 8.5 | 0.0 |
-| claude:sonnet | without | 2 | 92% | 18.5 | 2.0 |
+| claude:sonnet | without | 2 | 91% | 18.5 | 2.0 |
 | codex | with | 2 | 100% | 16.0 | 0.0 |
 | codex | without | 2 | 100% | 20.5 | 1.5 |
 | opencode:opencode/deepseek-v4.1-flash-free | with | 2 | 100% | 25.0 | 5.5 |
@@ -94,10 +96,10 @@ The runs used explicit invocation and the final grader (`grade-evals.ps1`). Each
 | opencode:opencode/glm-5.3-flash-free | with | 0 | - | - | - |
 | opencode:opencode/glm-5.3-flash-free | without | 0 | - | - | - |
 
-- Claude Sonnet without the skill used `WhenWritingNull` in both runs. A missing `id` then decoded as `Ok` with `Id = null`, and a line without `quantity` threw. With the skill, both runs used `deserializeNullAsNone = true`.
+- Claude Sonnet without the skill used `WhenWritingNull` in both runs. A missing `id` then decoded as `Ok` with `Id = null`, and a line without `quantity` threw. In one run, a missing `reserved` also decoded as `Ok` with `Reserved = null`. With the skill, both runs used `deserializeNullAsNone = true`.
 - In one earlier baseline run, Claude Sonnet without the skill used `WithSkippableOptionFields(SkippableOptionFields.Always)` and failed both `null` option checks.
 - Codex and deepseek used `deserializeNullAsNone = true` and `WithOverrides` in both modes. The skill reduced turns and failed builds for these targets, but not the pass rate.
-- The free opencode models hit the account limit "Free usage limit reached". `opencode run` then retries with no output until the 30-minute limit. The second deepseek run without the skill stopped after 4 turns with `Codec.fsx` unchanged (15/25 checks). The first glm run with the skill produced an empty transcript. These runs measure the quota, not the model, so the table does not count them. The other glm runs did not start.
+- The free opencode models hit the account limit "Free usage limit reached". `opencode run` then retries with no output until the 30-minute limit. The second deepseek run without the skill stopped after 4 turns with `Codec.fsx` unchanged (17/27 checks). The first glm run with the skill produced an empty transcript. These runs measure the quota, not the model, so the table does not count them. The other glm runs did not start.
 - The Claude Sonnet and Codex runs used the skill before the PR review fixes. The opencode runs used the final skill. The fixes changed reference text and proof checks, not the rules.
 
 ```powershell
