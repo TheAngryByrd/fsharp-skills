@@ -79,6 +79,7 @@ flowchart LR
 
 The text check does not find a parser that reads JSON with string functions or regular expressions.
 The comment removal does not nest `(* *)` comments, so a nested comment can hide a type name from the check or show one to it.
+The text check does not follow `#I` search paths, and it reads a `#load` inside an inactive `#if` block. Both need an F# preprocessor. The task is one script, and no eval run used them.
 The prompt names `JsonNode` but not its subtypes `JsonObject`, `JsonArray`, and `JsonValue`. The text check rejects all four.
 The `checkError` cases do not cover a missing `status`, `payment`, or `sku`.
 
