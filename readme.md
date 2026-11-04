@@ -1,7 +1,7 @@
 # F# skills
 
 Reusable instructions for AI agents working on F# code, packaged in the [Agent Skills format](https://agentskills.io/home).
-The skills cover domain design, dependency management, error composition, failure paths, idiomatic shape, async composition, API verification, compiler performance, Native AOT, .NET nullness interop, and signature files.
+The skills cover domain design, dependency management, error composition, failure paths, idiomatic shape, async composition, API verification, compiler performance, Native AOT, .NET nullness interop, signature files, and performance types.
 
 ## Skills
 
@@ -18,6 +18,7 @@ The skills cover domain design, dependency management, error composition, failur
 | [fsharp-verify-api](skills/fsharp-verify-api/SKILL.md) | Lists the real signatures of a package version before F# code uses them, and checks opens, references, existing helpers, and `.fsx` `#r` lines. | Agents write the API that they remember. FS0039 is the top compiler error in agent sessions, and each wrong guess costs a failed build. |
 | [fsharp-nullness-interop](skills/fsharp-nullness-interop/SKILL.md) | Turns on F# nullness checks, converts `T \| null` results from .NET APIs to F# types at the boundary, and fixes FS0041 errors from new BCL overloads such as `TimeSpan.FromSeconds(int64)`. | Codex and opencode sessions show 435 FS3261 warnings in 37 sessions (61% from 3 sessions) and FS0041 errors in 91 sessions. Claude sessions show 20 FS3261 hits and `TimeSpan.FromSeconds` overload errors. Some fixes compile but hide a real null, for example `Some (call ())`, `string x`, or `Unchecked.nonNull`. |
 | [fsharp-signature-files](skills/fsharp-signature-files/SKILL.md) | Adds `.fsi` files that expose only the API that other projects use, hides type representations behind constructor functions, fixes signature mismatches, and compares the public surface of the built assembly before and after. | Without guidance, an agent can keep the compiler's `--sig` output, which repeats every public member and hides nothing. A missing `RequireQualifiedAccess` in a `.fsi` is only a warning, and a doc comment that is only in the `.fs` leaves the XML file. The skill comes from a maintainer request, not from failure data. |
+| [fsharp-performance-types](skills/fsharp-performance-types/SKILL.md) | Chooses F# collections and types for run time and allocation: `list`, `array`, `ResizeArray`, `seq`, `Map` against `Dictionary`, single-pass loops, `voption`, struct tuples and records, and `StringBuilder` instead of `sprintf`. It measures allocated bytes and run time before and after with `GC.GetAllocatedBytesForCurrentThread` or BenchmarkDotNet. It links to `fsharp-idiom-review` for readable shape. | Agents write collection code that makes several passes, allocates on each element, or updates a `Map` in a loop. The compiler accepts it, and review evidence ranks collection efficiency among the strongest categories of human comments on agent F# code. A rewrite can also change the output: `ToString("F3")` follows the current culture and `sprintf` does not. |
 
 The patterns can work together: the environment supplies capabilities, and IWSAM interfaces describe possible errors.
 
@@ -106,6 +107,10 @@ Use fsharp-signature-files to add .fsi files to this library that expose only wh
 ```
 
 ```text
+Use fsharp-performance-types to make this summary fast for 200,000 rows, and report the allocated bytes and run time before and after.
+```
+
+```text
 Use optimize-fsharp-typecheck-graph to measure this project's type-checking bottleneck and evaluate a compatible improvement.
 ```
 
@@ -141,6 +146,9 @@ The runner builds and runs a project with nullness checks and warnings as errors
 The signature file skill includes a project-based runner, `scripts/run.ps1`, and `scripts/public-surface.ps1`, which prints the public API of a built assembly. Both require the .NET 10 SDK and PowerShell 7.4 or later.
 The runner checks the public surface, the XML documentation, and an `InternalsVisibleTo` test project of a sample library. It checks the `.fsi` output of `--allsigs`. It then builds each compile-time break test and checks for its expected diagnostic codes.
 
+The performance types skill includes a runner, `scripts/run.ps1`. It requires the .NET 10 SDK and PowerShell 7.2 or later.
+The runner runs `scripts/Perf.fsx` with `dotnet fsi --optimize+` and measures the allocation, culture, and sort claims of the skill. It fails when a measured result differs from the claim.
+
 The parsing and compiler-performance skills provide guidance. Apply their verification steps to the target project.
 
 ## Evaluate a skill
@@ -154,6 +162,8 @@ pwsh ./evals/run-evals.ps1 -Skill fsharp-native-aot -Target claude:sonnet,codex
 
 The runner starts agents without permission prompts. Read the caution in the eval README before you run it.
 Eval tasks exist for each skill. See the [eval README](evals/README.md) for the task list.
+
+The `fsharp-performance-types` eval ran with `claude:sonnet` (`claude-sonnet-5-5`), `codex` (gpt-6.1-sol, effort high; default from config, not recorded in run.json), and the free opencode models `opencode/flint-40b-free`, `opencode/nemotron-3.5-lightning-free`, and `opencode/deepseek-v4.1-flash-free`. Codex without the skill failed the `render` allocation limit in 2 of 2 runs and passed with the skill. Claude Sonnet passed every check without the skill and failed one output check in one run with the skill. The free models reached their usage limits, so the opencode comparison is partial. [lode/eval-design.md](lode/eval-design.md) and issue #13 have the results.
 
 ## Related skills
 

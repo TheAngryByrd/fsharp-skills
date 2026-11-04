@@ -1,0 +1,20 @@
+{
+  "skill": "fsharp-performance-types",
+  "contaminationKeywords": [
+    "performance",
+    "allocation",
+    "hot path",
+    "BenchmarkDotNet"
+  ],
+  "tasks": [
+    {
+      "id": "sensor-report",
+      "files": [
+        "inputs/Telemetry",
+        "inputs/Telemetry.Tests"
+      ],
+      "grader": "graders/sensor-report.ps1",
+      "prompt": "Telemetry/ is an F# library. Telemetry.Tests/ holds its tests (run it with dotnet run; it exits 0 when every test passes).\n\nIn production, Report.summarize gets batches of about 200,000 readings from about 1,000 sensors, and Report.render formats its result. Both are too slow, and profiles show long GC pauses. Make both functions fast. Reviewers will measure the run time and the allocated bytes of one call of each function.\n\nKeep the public types and function signatures of Telemetry unchanged, and keep the output of both functions unchanged. Do not change Telemetry.Tests/."
+    }
+  ]
+}
