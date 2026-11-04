@@ -103,6 +103,10 @@ Assert-Baseline 'msbuild -r takes no value' 'dotnet msbuild -r release-1.0.0/Shi
 Assert-Baseline 'a cd back out of release-1.0.0 is not the baseline' 'cd release-1.0.0 && ls && cd .. && dotnet build Shipping -p:OtherFlags=--sig:new.fsi' 0
 Assert-Baseline 'a popd out of release-1.0.0 is not the baseline' 'pushd release-1.0.0 && popd && dotnet build Shipping -p:OtherFlags=--sig:new.fsi' 0
 Assert-Baseline 'a popd returns to the folder before its pushd' 'cd release-1.0.0 && pushd Shipping && popd && dotnet build Shipping -p:OtherFlags=--sig:old.fsi' 1
+Assert-Baseline 'a quoted project path with a space builds the baseline' 'dotnet build "C:\work folder\release-1.0.0\Shipping\Shipping.fsproj" -p:OtherFlags=--sig:old.fsi' 1
+Assert-Baseline 'a quoted Set-Location path with a space builds the baseline' "pwsh -Command 'Set-Location `"C:\work space\ws\release-1.0.0\Shipping`"; dotnet build -p:OtherFlags=--sig:old.fsi'" 1
+Assert-Baseline 'a quoted cd path with a space builds the baseline' 'cd "/home/me/work folder/release-1.0.0/Shipping" && dotnet build -p:OtherFlags=--sig:old.fsi' 1
+Assert-Command 'a quoted message with a path and spaces does not run sig-diff' 'git commit -m "run scripts/sig-diff.ps1 -Project Shipping/Shipping.fsproj later"' $false
 Assert-Baseline 'a bare cd leaves release-1.0.0' 'cd release-1.0.0 && cd && dotnet build Shipping -p:OtherFlags=--sig:new.fsi' 0
 Assert-Signature 'a commit message that names --sig writes no signature' 'git commit -m "dotnet build -p:OtherFlags=--sig:a.fsi"' $false
 Assert-Command 'apicompat package comparison runs' 'dotnet apicompat package new/Shipping.1.1.0.nupkg --baseline-package old/Shipping.1.0.0.nupkg' $true

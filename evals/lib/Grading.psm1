@@ -41,7 +41,27 @@ function Copy-Workspace {
 }
 
 function Invoke-Capture {
-    param([Parameter(Mandatory)][string]$FilePath, [string[]]$Arguments = @(), [string]$WorkingDirectory = $PWD.Path)
+    param([Parameter(Mandatory)][string]$FilePath, [string[]]$Arguments = @(), [string]$WorkingDirectory = $PWD.Path, [int]$TimeoutSeconds = 0)
+    if ($TimeoutSeconds -gt 0) {
+        $info = [System.Diagnostics.ProcessStartInfo]::new($FilePath)
+        foreach ($a in $Arguments) { $info.ArgumentList.Add($a) }
+        $info.WorkingDirectory = $WorkingDirectory
+        $info.RedirectStandardOutput = $true
+        $info.RedirectStandardError = $true
+        $info.UseShellExecute = $false
+        $process = [System.Diagnostics.Process]::Start($info)
+        try {
+            $stdout = $process.StandardOutput.ReadToEndAsync()
+            $stderr = $process.StandardError.ReadToEndAsync()
+            $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
+            if ($timedOut) { $process.Kill($true); $process.WaitForExit() }
+            $lines = @(($stdout.Result + $stderr.Result) -split '\r?\n' | Where-Object { $_ -ne '' })
+            if ($timedOut) { $lines += "timed out after $TimeoutSeconds seconds: $FilePath $($Arguments -join ' ')" }
+            return [pscustomobject]@{ ExitCode = $(if ($timedOut) { -1 } else { $process.ExitCode }); Lines = $lines; Text = ($lines -join "`n"); TimedOut = $timedOut }
+        } finally {
+            $process.Dispose()
+        }
+    }
     Push-Location $WorkingDirectory
     try {
         $output = & $FilePath @Arguments 2>&1 | ForEach-Object { "$_" }

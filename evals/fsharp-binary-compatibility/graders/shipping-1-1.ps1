@@ -5,7 +5,8 @@ param(
     [switch]$SkipNative,
     [string]$LegacySource = (Join-Path $PSScriptRoot '../inputs/LegacyApp/Program.fs'),
     [string]$AppName = 'LegacyApp',
-    [bool]$StatusOfReturnsHeld = $true
+    [bool]$StatusOfReturnsHeld = $true,
+    [int]$ProbeTimeoutSeconds = 300
 )
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
@@ -41,7 +42,7 @@ Copy-Item $LegacySource (Join-Path $build 'legacy/Program.fs')
 $legacyProject = Join-Path $build 'legacy/LegacyApp.fsproj'
 
 function Invoke-Run([string]$Dll) {
-    $r = Invoke-Capture dotnet @($Dll) -WorkingDirectory $build
+    $r = Invoke-Capture dotnet @($Dll) -WorkingDirectory $build -TimeoutSeconds $ProbeTimeoutSeconds
     [pscustomobject]@{ ExitCode = $r.ExitCode; Text = $r.Text; Output = (($r.Lines | ForEach-Object { $_.TrimEnd() }) -join "`n").Trim() }
 }
 
@@ -95,20 +96,22 @@ $newApp = Join-Path $copy 'NewApp/NewApp.fsproj'
 if ($built -and (Test-Path $newApp)) {
     $refs = Invoke-Capture dotnet @('msbuild', $newApp, '-getItem:ProjectReference') -WorkingDirectory (Split-Path $newApp)
     $usesShipping = $refs.ExitCode -eq 0 -and $refs.Text -match 'Shipping\.fsproj'
-    $run = Invoke-Capture dotnet @('run', '-c', 'Release', $noBaseline) -WorkingDirectory (Split-Path $newApp)
+    $run = Invoke-Capture dotnet @('run', '-c', 'Release', $noBaseline) -WorkingDirectory (Split-Path $newApp) -TimeoutSeconds $ProbeTimeoutSeconds
     $lines = @($run.Lines | Where-Object { $_ -notmatch ': (warning|error) ' -and $_.Trim() } | ForEach-Object { $_.TrimEnd() })
     $expected = @(Get-Content (Join-Path $PSScriptRoot 'newapp-expected.txt') | Where-Object { $_ })
     $source = (Get-ChildItem (Split-Path $newApp) -Recurse -File -Filter *.fs | Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } | ForEach-Object { Get-Content -Raw $_.FullName }) -join "`n"
     $hardcoded = @([regex]::Matches($source, '(?<![\d.])(6\.90?|13\.80?|13\.50?)(?![\d])') | ForEach-Object { $_.Value })
-    $features = @(ConvertFrom-ProbeOutput (Invoke-Capture dotnet @('fsi', '--nologo', (Join-Path $PSScriptRoot 'FeatureProbe.fsx'), (Join-Path $oldDir 'Shipping.dll')) -WorkingDirectory $PSScriptRoot).Lines)
+    $probe = Invoke-Capture dotnet @('fsi', '--nologo', (Join-Path $PSScriptRoot 'FeatureProbe.fsx'), (Join-Path $oldDir 'Shipping.dll')) -WorkingDirectory $PSScriptRoot -TimeoutSeconds $ProbeTimeoutSeconds
+    $features = @(ConvertFrom-ProbeOutput $probe.Lines)
     $feature = { param($name) [bool](@($features | Where-Object { $_.text -eq $name -and $_.passed }).Count) }
     $env:SHIPPING_PROBE_DIR = $oldDir
     try {
-        $statusProbe = Invoke-Capture pwsh @('-NoProfile', '-Command', '[void][Reflection.Assembly]::LoadFrom((Join-Path $env:SHIPPING_PROBE_DIR "FSharp.Core.dll")); $r = [Reflection.Assembly]::LoadFrom((Join-Path $env:SHIPPING_PROBE_DIR "Shipping.dll")).GetType("Shipping").GetMethod("statusOf").Invoke($null, @("HD")); [bool]($null -ne $r -and $r.Value.IsHeld)') -WorkingDirectory $build
+        $statusProbe = Invoke-Capture pwsh @('-NoProfile', '-Command', '[void][Reflection.Assembly]::LoadFrom((Join-Path $env:SHIPPING_PROBE_DIR "FSharp.Core.dll")); $r = [Reflection.Assembly]::LoadFrom((Join-Path $env:SHIPPING_PROBE_DIR "Shipping.dll")).GetType("Shipping").GetMethod("statusOf").Invoke($null, @("HD")); [bool]($null -ne $r -and $r.Value.IsHeld)') -WorkingDirectory $build -TimeoutSeconds $ProbeTimeoutSeconds
     } finally { Remove-Item Env:SHIPPING_PROBE_DIR -ErrorAction SilentlyContinue }
     $statusOfHeld = $statusProbe.Text.Trim() -eq 'True'
     $problems = @(
         if (-not $usesShipping) { 'NewApp has no ProjectReference to Shipping.fsproj.' }
+        foreach ($r in @($run, $probe, $statusProbe) | Where-Object TimedOut) { $r.Lines[-1] + '.' }
         if ($hardcoded.Count) { "NewApp source holds result values: $($hardcoded -join ', ')." }
         if (-not (& $feature 'express')) { 'No public Shipping function, Parcel member, or class method gives the express price 13.80 for P1.' }
         if (-not (& $feature 'insured')) { 'No public Shipping function, Parcel member, or class method gives the insured price 13.50 for P4 with a declared value of 300.00.' }
@@ -130,7 +133,10 @@ if (Test-Path $transcript) {
     $results = @(Get-TranscriptCommandResults $transcript)
     $compared = '(?m)APICompat ran successfully|API compatibility errors|API breaking changes found|CP\d{4}|No F# signature change|The F# signature changed|Successfully created package|^@@ .* @@|^[+-]\s*val '
     $tools = @($results | Where-Object { $_.Output -match $compared -and (Test-CompatibilityCommand $_.Command $validates) } | ForEach-Object { $_.Command } | Select-Object -Unique)
-    $signatureBuilds = @($results | Where-Object { -not $_.Failed } | ForEach-Object { Get-SignatureBuilds $_.Command })
+    $signatureBuilds = @($results | Where-Object { -not $_.Failed } | ForEach-Object {
+            $builds = @(Get-SignatureBuilds $_.Command)
+            if ([regex]::Matches($_.Output, '(?im)^\s*Build\s+\S*succeeded').Count -ge $builds.Count) { $builds }
+        })
     $baselineBuild = $signatureBuilds | Where-Object Baseline | Select-Object -First 1
     $newBuild = $signatureBuilds | Where-Object { -not $_.Baseline } | Select-Object -First 1
     $tools += @(if ($baselineBuild -and $newBuild) { $baselineBuild.Segment, $newBuild.Segment })

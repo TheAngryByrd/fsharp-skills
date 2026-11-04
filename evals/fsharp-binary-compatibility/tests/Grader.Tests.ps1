@@ -2,6 +2,8 @@
 #Requires -Version 7.4
 param([string[]]$Case)
 $ErrorActionPreference = 'Stop'
+$Case = @($Case | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+$ran = [System.Collections.Generic.List[string]]::new()
 $PSNativeCommandUseErrorActionPreference = $false
 
 $evalDir = Split-Path $PSScriptRoot
@@ -32,6 +34,7 @@ function New-Transcript([string]$Path, [string[]]$Commands) {
         elseif ($command -match 'apicompat') { 'APICompat ran successfully without finding any breaking changes.' }
         elseif ($command -match 'sig-diff') { 'No F# signature change.' }
         elseif ($command -match 'dotnet pack') { 'Successfully created package' }
+        elseif ($command -match '--sig') { @([regex]::Matches($command, 'dotnet (?:build|msbuild)') | ForEach-Object { 'Build succeeded.' }) -join "`n" }
         else { 'ok' }
         ConvertTo-Json -Depth 10 -Compress -InputObject @{ type = 'assistant'; message = @{ content = @(@{ type = 'tool_use'; id = "t$i"; name = 'Bash'; input = @{ command = $command } }) } }
         ConvertTo-Json -Depth 10 -Compress -InputObject @{ type = 'user'; message = @{ content = @(@{ type = 'tool_result'; tool_use_id = "t$i"; is_error = $failed; content = $output }) } }
@@ -39,8 +42,9 @@ function New-Transcript([string]$Path, [string[]]$Commands) {
     Set-Content $Path $lines
 }
 
-function Invoke-Case([string]$Name, [scriptblock]$Prepare, [string[]]$Command, [hashtable]$Expected, [string]$TaskId = 'shipping-1-1') {
+function Invoke-Case([string]$Name, [scriptblock]$Prepare, [string[]]$Command, [hashtable]$Expected, [string]$TaskId = 'shipping-1-1', [hashtable]$GraderArgs = @{}, [hashtable]$Evidence = @{}) {
     if ($Case -and $Name -notin $Case) { return }
+    $ran.Add($Name)
     $task = $spec.tasks | Where-Object id -eq $TaskId
     $grader = Join-Path $evalDir $task.grader
     $run = Join-Path $root $Name
@@ -51,14 +55,15 @@ function Invoke-Case([string]$Name, [scriptblock]$Prepare, [string[]]$Command, [
     if ($Command) { New-Transcript (Join-Path $run 'transcript.jsonl') $Command }
     $grade = Join-Path $run 'grade'
     New-Item -ItemType Directory -Force -Path $grade | Out-Null
-    & $grader -Workspace $ws -OutDir $grade | Out-Null
+    & $grader -Workspace $ws -OutDir $grade @GraderArgs | Out-Null
     $checks = @(Get-Content -Raw (Join-Path $grade 'grading.json') | ConvertFrom-Json)
     foreach ($key in $Expected.Keys) {
         $text = if ($TaskId -eq 'feed-codes') { $names[$key] -replace '^LegacyApp ', 'A customer app ' } else { $names[$key] }
         $check = $checks | Where-Object text -eq $text | Select-Object -First 1
         $got = if ($check) { $check.passed } else { 'absent' }
         $want = $Expected[$key]
-        if ("$got" -eq "$want") { Write-Host "PASS $Name $key = $want" }
+        $evidenceOk = -not $Evidence.ContainsKey($key) -or ($check -and $check.evidence -match $Evidence[$key])
+        if ("$got" -eq "$want" -and $evidenceOk) { Write-Host "PASS $Name $key = $want" }
         else {
             Write-Host "FAIL $Name $key = $got (expected $want) $($check.evidence)"
             $failures.Add("$Name $key")
@@ -260,6 +265,21 @@ try {
 
     Invoke-Case 'same-signature-build-text-in-two-folders' { param($ws) Set-Good $ws } @('cd /work/ws/release-1.0.0/Shipping && dotnet build -p:OtherFlags=--sig:api.fsi', 'cd /work/ws/Shipping && dotnet build -p:OtherFlags=--sig:api.fsi') @{ tool = $true }
 
+    Invoke-Case 'skipped-signature-builds-in-a-successful-call' { param($ws) Set-Good $ws } 'OK done :: false && dotnet build release-1.0.0/Shipping -p:OtherFlags=--sig:old.fsi && dotnet build Shipping -p:OtherFlags=--sig:new.fsi; echo done' @{ tool = $false }
+
+    Invoke-Case 'quoted-baseline-path-with-a-space' { param($ws) Set-Good $ws } 'dotnet build "C:\work folder\release-1.0.0\Shipping\Shipping.fsproj" -p:OtherFlags=--sig:old.fsi && dotnet build Shipping -p:OtherFlags=--sig:new.fsi' @{ tool = $true }
+
+    Invoke-Case 'blocking-constructor' {
+        param($ws)
+        Set-Good $ws
+        Add-Content (Join-Path $ws 'Shipping/Shipping.fs') @(
+            ''
+            'type Blocker() ='
+            '    do System.Threading.Thread.Sleep System.Threading.Timeout.Infinite'
+            '    member _.Read(code: string) = code'
+        )
+    } 'dotnet apicompat --left a.dll --right b.dll' @{ build = $true; load = $true; output = $true; compat = $true; newapp = $false; tool = $true } 'shipping-1-1' @{ ProbeTimeoutSeconds = 60 } @{ newapp = 'timed out after 60 seconds: dotnet fsi' }
+
     Invoke-Case 'original-input' { param($ws) } 'dotnet build' @{ build = $true; version = $false; load = $true; output = $true; compat = $true; newapp = $false; tool = $false }
 
     Invoke-Case 'feed-good' { param($ws) Copy-Item (Join-Path $PSScriptRoot 'feed-good/*') $ws -Recurse -Force } 'dotnet apicompat --left a.dll --right b.dll' $all 'feed-codes'
@@ -275,6 +295,7 @@ try {
     Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
 }
 
+foreach ($name in @($Case | Where-Object { $_ -notin $ran })) { $failures.Add("no case named $name") }
 if ($failures.Count) {
     Write-Host "$($failures.Count) grader test(s) failed: $($failures -join ', ')"
     exit 1

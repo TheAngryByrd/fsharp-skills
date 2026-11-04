@@ -34,6 +34,7 @@ function Get-CommandSegments([string]$Command) {
             elseif ($value -match '^[-/]p(?:roperty)?:') { $value -replace '[\s;&|]', '_' }
             elseif ($value -match '^[^\s;&|]+$') { $value }
             elseif ($value -match '[\\/](dotnet|pwsh|powershell|apicompat|sig-diff\.ps1)(?:\.exe)?$') { $Matches[1] }
+            elseif ($value -match '^(?:[A-Za-z]:|~|\.{1,2})?[\\/][^;&|]*$') { $value -replace '\s', '_' }
             else { '""' }
         })
     foreach ($segment in $script -split '&&|\|\||[;|\r\n]') {

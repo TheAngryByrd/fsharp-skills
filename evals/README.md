@@ -286,7 +286,7 @@ Test the `fsharp-performance-types` grader against a known good result, the orig
 pwsh ./evals/fsharp-performance-types/tests/Grader.Tests.ps1
 ```
 
-Test the `fsharp-binary-compatibility` graders against good results for both tasks, a naive result, each single break, a project with package validation, `statusOf` that returns `Held` in `feed-codes`, a `NewApp` that prints fixed text, features that only `NewApp` computes, features on `Parcel` members or on a class, a missing `NewApp`, a failed `dotnet pack`, a failed or break-reporting `apicompat`, two `--sig` builds with no `release-1.0.0` build, and the original input. Test the tool check against real and read-only commands. Add `-Case <name>` to run only some grader cases:
+Test the `fsharp-binary-compatibility` graders against good results for both tasks, a naive result, each single break, a project with package validation, `statusOf` that returns `Held` in `feed-codes`, a `NewApp` that prints fixed text, features that only `NewApp` computes, features on `Parcel` members or on a class, a missing `NewApp`, a failed `dotnet pack`, a failed or break-reporting `apicompat`, two `--sig` builds with no `release-1.0.0` build, skipped `--sig` builds, a quoted path with a space, a class whose constructor blocks, and the original input. Test the tool check against real and read-only commands. Add `-Case <name>` to run only some grader cases:
 
 ```powershell
 pwsh ./evals/fsharp-binary-compatibility/tests/Grader.Tests.ps1

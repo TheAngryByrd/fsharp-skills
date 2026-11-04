@@ -60,5 +60,16 @@ finally {
     Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
 }
 
+$done = Invoke-Capture pwsh @('-NoProfile', '-Command', 'Write-Output a; [Console]::Error.WriteLine("b"); exit 3') -TimeoutSeconds 60
+Assert-That 'a time limit keeps the exit code, stdout, and stderr of a command that ends' ($done.ExitCode -eq 3 -and -not $done.TimedOut -and $done.Lines -contains 'a' -and $done.Lines -contains 'b') ($done | ConvertTo-Json)
+$pidFile = Join-Path ([IO.Path]::GetTempPath()) ("invoke-capture-" + [guid]::NewGuid().ToString('n') + '.txt')
+$watch = [Diagnostics.Stopwatch]::StartNew()
+$hung = Invoke-Capture pwsh @('-NoProfile', '-Command', "Write-Output started; `$c = Start-Process pwsh -ArgumentList '-NoProfile','-Command','Start-Sleep 600' -NoNewWindow -PassThru; Set-Content '$pidFile' `$c.Id; Start-Sleep 600") -TimeoutSeconds 10
+$watch.Stop()
+$child = Get-Content $pidFile -ErrorAction SilentlyContinue
+Assert-That 'a command over the time limit stops with TimedOut and its output' ($hung.TimedOut -and $hung.ExitCode -eq -1 -and $hung.Lines -contains 'started' -and $hung.Text -match 'timed out after 10 seconds' -and $watch.Elapsed.TotalSeconds -lt 120) ($hung | ConvertTo-Json)
+Assert-That 'a command over the time limit stops its child processes' ($child -and -not (Get-Process -Id $child -ErrorAction SilentlyContinue)) "child $child"
+Remove-Item $pidFile -ErrorAction SilentlyContinue
+
 if ($failures.Count) { throw "$($failures.Count) test(s) failed: $($failures -join ', ')" }
 Write-Host 'All grading helper tests passed.'
