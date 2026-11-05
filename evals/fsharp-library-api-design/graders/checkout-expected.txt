@@ -1,0 +1,6 @@
+ch_1_USD_26.02 | card ending 4242 | fee 1.02 | total 26.02
+ch_2_EUR_82.72 | PayPal ana@example.com | fee 2.72 | total 82.72
+batch 2 | total 108.74
+status Approved
+card fee 0.59
+card fee 3.20

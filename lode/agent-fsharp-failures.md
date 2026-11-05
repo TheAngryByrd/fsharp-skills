@@ -61,6 +61,7 @@ No source showed Fantomas, SRTP/IWSAM, `.fsproj` compile-order, or logging-forma
 | `fsharp-performance-types` | 7 (collection efficiency) | Silent: extra passes and allocation for each element compile and pass tests. |
 
 `fsharp-signature-files` has no area in this table. It comes from a maintainer request, not from failure data. The sources show almost no signature-file failures, and their FS0034 hits came from the excluded `build-times` repository. Its eval must show its value.
+`fsharp-library-api-design` also has no area in this table. It comes from issue #11, not from failure data.
 
 Areas 4, 5, 8, 10, and 11 have no F# skill.
 Area 4 is not F#-specific. Area 5 is covered by `dotnet-test-audit`.

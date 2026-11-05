@@ -1,0 +1,3 @@
+cs_USD_41.46 | fee 1.46 | total 41.46
+batch 2 | total 82.92
+paypal fee 1.70

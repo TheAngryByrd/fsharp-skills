@@ -48,6 +48,8 @@ Each `scripts/breaks/<Name>/` folder has its own `Break.fsproj`. The runner chec
 Sample.EmailModule | static create(input: System.String) : Microsoft.FSharp.Core.FSharpResult<Sample.Email, System.String>
 ```
 
+The `fsharp-library-api-design` `minor-release` grader parses these lines: `Type | name(params) : result`, `Type | new(params)`, `Type | Name[params] : type with access`, and `Type | name : type with access`. After a change to this format, run `evals/fsharp-library-api-design/tests/Grader.Tests.ps1`.
+
 ## Binary compatibility
 
 The `fsharp-binary-compatibility` runner is project-based and requires PowerShell 7.4. `scripts/Directory.Build.props` puts `bin` and `obj` under `FSHARP_BINCOMPAT_PROOF_ROOT`, a per-run temp directory that the runner deletes.
@@ -67,6 +69,21 @@ Each `scripts/proof/cases/<case>/` folder holds library versions (`v1.fs`, `brea
 - `build=FS0871`: the variant must fail to compile with that code.
 
 `scripts/.config/dotnet-tools.json` pins `Microsoft.DotNet.ApiCompat.Tool` 10.0.403, and the runner runs `dotnet tool restore`. `proof/ToolProofs.ps1` runs after the cases with a private `NUGET_PACKAGES` folder and a unique package ID. It checks package validation (CP0002 for the new parameter, a pass for the safe change and for a union case in the middle), the generated `CompatibilitySuppressions.xml`, the FSharp.Core dependency in the `.nuspec`, NU1605 and a startup `FileNotFoundException` for a consumer pinned to FSharp.Core 8.0.400, `Microsoft.CodeAnalysis.PublicApiAnalyzers` on an F# library against a C# control, and the exit codes of `sig-diff.ps1`, also for a multi-target project with no `-Framework` and a missing project path. Another tool proof puts a `Directory.Build.props` above the repository and checks that `-BaselineRef` gives no change, because the baseline worktree is a sibling of the repository. The analyzer projects build from the same temp copy with its own `nuget.config`. A `trap` in `sig-diff.ps1` turns each terminating error into exit code 2, because exit code 1 means a signature change. The package proofs run from a temp copy with its own `nuget.config` (`<clear />` for sources and package source mapping), because a parent `nuget.config` with package source mapping hides the local feed (NU1101).
+
+## Library API design
+
+The `fsharp-library-api-design` runner is project-based and requires PowerShell 7.4 and NuGet access. It has a copy of the signature file isolation files that reads `FSHARP_API_PROOF_ROOT`, set to one folder for each change, because every changed library has the project name `Lib`. It sets `NUGET_PACKAGES` to a per-run folder, so the package validation baseline never comes from an old cache, and restores the old value at the end.
+It packs `scripts/V1` as the `FsApiDesignProofLib` 1.0.0 baseline into a local feed, and builds `scripts/Consumer` (F#, `TreatWarningsAsErrors`) and `scripts/ConsumerCs` against it. For each `scripts/changes/<Name>/Lib.fs`, it writes version 1.1.0 into the copied project file. A version that differs between the pack and the consumer build gives `FileNotFoundException` at run time. Then it packs with `EnablePackageValidation`, rebuilds both consumers, and runs the 1.0.0 consumer outputs with the new `Lib.dll`. A `// flags: --nooptimizationdata` line builds the change and a separate 1.0.0 baseline with that flag, because an old consumer keeps the function bodies that it copied from the 1.0.0 DLL. Each result must equal its `// expect-` line:
+
+```fsharp
+// expect-source-fs: ok
+// expect-source-cs: ok
+// expect-binary-fs: MissingMethodException
+// expect-binary-cs: MissingMethodException
+// expect-package-validation: CP0002
+```
+
+A binary result is `same`, `stale` (the old output, but a rebuilt consumer prints a new output, as for an `inline` body or a small function body in a Release F# consumer), `differs`, or the exception name. The consumers also take `Client.Total` as a method group, so the AddOverload case measures C# CS8917. The F# consumer calls `Send` and `Total` through unannotated function parameters, and the C# consumer calls `Send(null)`, so the AddReferenceOverload case measures FS0041 and CS0121. The runner also reads the FSharp.Core dependency from the `.nuspec` of a default pack and of `scripts/LowestCore`, which pins FSharp.Core 6.0.7.
 
 ## Native AOT
 

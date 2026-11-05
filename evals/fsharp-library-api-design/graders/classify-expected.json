@@ -1,0 +1,12 @@
+{
+  "add-bank-transfer": { "fsharpSource": true, "csharpSource": false, "binary": false, "packageValidation": false },
+  "tupled-calculate": { "fsharpSource": true, "csharpSource": false, "binary": false, "packageValidation": false },
+  "default-currency": { "fsharpSource": false, "csharpSource": false, "binary": true, "packageValidation": true },
+  "chargeall-seq": { "fsharpSource": false, "csharpSource": false, "binary": true, "packageValidation": true },
+  "key-fsharp-optional": { "fsharpSource": false, "csharpSource": true, "binary": true, "packageValidation": true },
+  "key-overload": { "fsharpSource": false, "csharpSource": false, "binary": false, "packageValidation": false },
+  "receipt-currency": { "fsharpSource": false, "csharpSource": false, "binary": false, "packageValidation": true },
+  "status-qualified": { "fsharpSource": true, "csharpSource": false, "binary": false, "packageValidation": false },
+  "gateway-refund": { "fsharpSource": true, "csharpSource": true, "binary": true, "packageValidation": true },
+  "obsolete-calculate": { "fsharpSource": true, "csharpSource": true, "binary": false, "packageValidation": false }
+}
