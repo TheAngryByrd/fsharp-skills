@@ -12,7 +12,7 @@ type Shape =
     | Triangle of side: float // new
 ```
 
-A consumer that matches each case gets FS0025 (incomplete match). With `TreatWarningsAsErrors`, the build fails. An old binary runs until it gets a `Triangle`.
+A consumer that matches each case gets FS0025 (incomplete match). With `TreatWarningsAsErrors`, the build fails. An old binary runs until it gets a `Triangle`. Then it can run a wrong branch of its match, with no error. The `union-new-case` proof of [fsharp-binary-compatibility](../../fsharp-binary-compatibility/SKILL.md) shows this result (`old=wrong`).
 Package validation does not report it, because the new case only adds members.
 
 Safe alternative: none in a minor version. Release the case in a major version. For a union that must grow, hide its representation from the first release, and expose functions or active patterns.

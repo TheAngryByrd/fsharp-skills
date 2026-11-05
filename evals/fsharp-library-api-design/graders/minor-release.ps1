@@ -2,11 +2,13 @@
 param(
     [Parameter(Mandatory)][string]$Workspace,
     [Parameter(Mandatory)][string]$OutDir,
-    [switch]$SkipNative
+    [switch]$SkipNative,
+    [int]$RunTimeoutSeconds = 300
 )
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 Import-Module (Join-Path $PSScriptRoot '../../lib/Grading.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Dependencies.psm1') -Force
 
 $globalJson = Get-Content -Raw (Join-Path $PSScriptRoot 'global.json')
 $surfaceScript = Join-Path $PSScriptRoot '../../../skills/fsharp-signature-files/scripts/public-surface.ps1'
@@ -20,7 +22,7 @@ $probes = [ordered]@{
     IdempotencyKey = [pscustomobject]@{
         Build = 'A C# probe that calls client.Charge(request, "order-42") and client.Charge(request) builds against the new Payments'
         Checks = @(
-            'A second charge with the same key returns the first receipt and does not call the gateway'
+            'A second charge with the same key and a different request returns the first receipt and does not call the gateway'
             'A charge with a new key calls the gateway'
             'A charge with the first key after a different key returns the first receipt and does not call the gateway'
             'Charges without a key call the gateway each time')
@@ -40,10 +42,6 @@ function Get-OutputLines($Result) {
 
 function Test-Output([string]$Name, $Result) {
     $Result.ExitCode -eq 0 -and ((Get-OutputLines $Result) -join "`n") -ceq ($expected[$Name] -join "`n")
-}
-
-function Get-AssemblyVersion([string]$Path) {
-    try { [Reflection.AssemblyName]::GetAssemblyName($Path).Version } catch { [version]'0.0' }
 }
 
 function Get-BuildErrors($Result) {
@@ -83,6 +81,7 @@ foreach ($name in $consumers) {
 $newOut = Join-Path $OutDir 'new-out'
 $build = Invoke-Capture dotnet @('build', $project, '-c', 'Release', '-o', $newOut, '-p:CopyLocalLockFileAssemblies=true') -WorkingDirectory (Split-Path $project)
 $newDll = Join-Path $newOut 'Payments.dll'
+$newPackages = Get-PackageVersions (Join-Path $newOut 'Payments.deps.json')
 $built = $build.ExitCode -eq 0 -and (Test-Path $newDll)
 $checks += New-Check 'Payments builds' $built $(if (-not $built) { Get-BuildErrors $build })
 
@@ -95,7 +94,7 @@ $notes = if (Test-Path $notesPath) { Get-Content -Raw $notesPath } else { '' }
 $checks += New-Check 'RELEASE_NOTES.md has a 1.1.0 entry' ($notes -match '(?m)^#+.*\b1\.1\.0\b') $(if (-not $notes) { 'Payments/RELEASE_NOTES.md is missing' })
 
 foreach ($name in $consumers) {
-    $run = Invoke-Capture dotnet @('run', '-c', 'Release') -WorkingDirectory (Join-Path $copy $name)
+    $run = Invoke-Capture dotnet @('run', '-c', 'Release') -WorkingDirectory (Join-Path $copy $name) -TimeoutSeconds $RunTimeoutSeconds
     $checks += New-Check "The 1.0.0 source of $name builds against the new Payments and prints the same output" (Test-Output $name $run) (Get-LastLines $run.Text)
 }
 
@@ -105,13 +104,14 @@ foreach ($name in $consumers) {
     $swap = Join-Path $OutDir "swap/$name"
     Copy-Item $v1Out[$name] $swap -Recurse
     Copy-Item $newDll (Join-Path $swap 'Payments.dll') -Force
+    $oldPackages = Get-PackageVersions (Join-Path $swap "$name.deps.json")
     foreach ($dll in Get-ChildItem $newOut -Filter *.dll) {
         $old = Join-Path $swap $dll.Name
-        if (-not (Test-Path $old) -or (Get-AssemblyVersion $dll.FullName) -gt (Get-AssemblyVersion $old)) { Copy-Item $dll.FullName $old -Force }
+        if (Test-NewerDependency -NewDll $dll.FullName -OldDll $old -NewPackages $newPackages -OldPackages $oldPackages) { Copy-Item $dll.FullName $old -Force }
     }
     # The host loads only the assemblies that deps.json lists, so a new dependency of Payments needs the app folder probe.
     Remove-Item (Join-Path $swap "$name.deps.json") -Force
-    $run = Invoke-Capture dotnet @("$name.dll") -WorkingDirectory $swap
+    $run = Invoke-Capture dotnet @("$name.dll") -WorkingDirectory $swap -TimeoutSeconds $RunTimeoutSeconds
     $checks += New-Check $text (Test-Output $name $run) (Get-LastLines $run.Text)
 }
 
@@ -164,7 +164,7 @@ foreach ($name in $probes.Keys) {
         foreach ($text in $spec.Checks) { $checks += New-Check $text $null 'skipped: the C# probe did not build' }
         continue
     }
-    $probe = Invoke-Capture dotnet @('out/Probe.dll') -WorkingDirectory $probeDir
+    $probe = Invoke-Capture dotnet @('out/Probe.dll') -WorkingDirectory $probeDir -TimeoutSeconds $RunTimeoutSeconds
     $results = @(ConvertFrom-ProbeOutput $probe.Lines)
     foreach ($text in $spec.Checks) {
         $hit = @($results | Where-Object text -eq $text) | Select-Object -First 1
