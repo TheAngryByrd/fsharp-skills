@@ -168,7 +168,10 @@ foreach ($name in $probes.Keys) {
     $results = @(ConvertFrom-ProbeOutput $probe.Lines)
     foreach ($text in $spec.Checks) {
         $hit = @($results | Where-Object text -eq $text) | Select-Object -First 1
-        $checks += if ($hit) { $hit } else { New-Check $text $false "the probe printed no result: $(Get-LastLines $probe.Text)" }
+        $checks += if ($probe.TimedOut) { New-Check $text $false "the probe timed out after $RunTimeoutSeconds seconds: $(Get-LastLines $probe.Text)" }
+            elseif ($probe.ExitCode -ne 0) { New-Check $text $false "the probe exited with code $($probe.ExitCode): $(Get-LastLines $probe.Text)" }
+            elseif ($hit) { $hit }
+            else { New-Check $text $false "the probe printed no result: $(Get-LastLines $probe.Text)" }
     }
 }
 

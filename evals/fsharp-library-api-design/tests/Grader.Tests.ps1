@@ -225,6 +225,13 @@ try {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) '    member _.ChargeAll(requests: seq<ChargeRequest>) : Receipt list = requests |> Seq.map (fun r -> { charge r with Fee = 0m; Total = r.Amount }) |> List.ofSeq'
         }) @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $F, $F, $F)
+    $worker = Invoke-Case 'foreground-worker' -Good -GraderArgs @{ RunTimeoutSeconds = 45 } -Edit {
+            param($ws)
+            Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) '    member _.ChargeAll(requests: seq<ChargeRequest>) : Receipt list = System.Threading.Thread(System.Threading.ThreadStart(fun () -> System.Threading.Thread.Sleep System.Threading.Timeout.Infinite)).Start(); requests |> Seq.map charge |> List.ofSeq'
+        }
+    Assert-Checks 'seq overload that starts a foreground thread that never stops' $worker @($T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $T, $F, $F, $F)
+    $workerEvidence = ($worker | Where-Object text -eq $names[15]).evidence
+    if ($workerEvidence -notmatch '^the probe timed out after 45 seconds') { $failures.Add("foreground worker: the ChargeAll check does not report the time limit.`n$workerEvidence") }
     Assert-Checks 'indexer that returns option' (Invoke-Case 'option-indexer' -Good -Edit {
             param($ws)
             Edit-File (Join-Path $ws 'Payments/Payments.fs') ([regex]::Escape($seqOverload)) "$seqOverload`n`n    member _.Item with get (idempotencyKey: string) : Receipt option = None"
