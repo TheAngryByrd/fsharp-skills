@@ -343,8 +343,10 @@ function Get-RunValue($Run, [string]$Name) {
 
 function Format-Mean([object[]]$Values) {
     $mean = Get-Mean $Values
-    if ($null -ne $mean) { '{0:n1}' -f $mean } else { '-' }
+    if ($null -ne $mean) { Format-Invariant '{0:n1}' $mean } else { '-' }
 }
+
+function Format-Invariant([string]$Format, $Value) { [string]::Format([Globalization.CultureInfo]::InvariantCulture, $Format, $Value) }
 
 function Format-TargetLabel([object[]]$Runs) {
     $models = @($Runs | ForEach-Object { Get-RunValue $_ 'resolvedModel' } | Where-Object { $_ } | Sort-Object -Unique)
@@ -375,10 +377,10 @@ function Write-Summary {
         $rate = Get-Mean ($r | ForEach-Object { if (($_.passed + $_.failed) -gt 0) { $_.passed / ($_.passed + $_.failed) } })
         $tok = Get-Mean ($r | ForEach-Object { if ($null -ne $_.inputTokens) { $_.inputTokens + $_.outputTokens } })
         $lines += '| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} |' -f (Format-TargetLabel $all), $r[0].task, $r[0].mode, $r.Count,
-            $(if ($null -ne $rate) { '{0:p0}' -f $rate } else { '-' }),
+            $(if ($null -ne $rate) { Format-Invariant '{0:0}%' ($rate * 100) } else { '-' }),
             (($r | Measure-Object skipped -Sum).Sum),
-            ('{0:n0}' -f (Get-Mean $r.seconds)),
-            $(if ($null -ne $tok) { '{0:n0}' -f $tok } else { '-' }),
+            $(if ($null -ne ($sec = Get-Mean $r.seconds)) { Format-Invariant '{0:n0}' $sec } else { '-' }),
+            $(if ($null -ne $tok) { Format-Invariant '{0:n0}' $tok } else { '-' }),
             (Format-Mean ($r | ForEach-Object { Get-RunValue $_ 'turns' })),
             (Format-Mean ($r | ForEach-Object { Get-RunValue $_ 'failedBuilds' })),
             $notLoaded
