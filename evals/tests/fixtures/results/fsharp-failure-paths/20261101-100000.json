@@ -1,0 +1,1015 @@
+{
+  "schemaVersion": 1,
+  "skill": "fsharp-failure-paths",
+  "runId": "20261101-100000",
+  "runs": [
+    {
+      "target": "claude:sonnet",
+      "agent": "claude",
+      "model": "sonnet",
+      "resolvedModel": "claude-sonnet-5-5",
+      "task": "invoice",
+      "mode": "with",
+      "run": 1,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 140,
+      "inputTokens": 59000,
+      "outputTokens": 4900,
+      "costUsd": 0.18,
+      "turns": 9,
+      "failedBuilds": 1,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:sonnet",
+      "agent": "claude",
+      "model": "sonnet",
+      "resolvedModel": "claude-sonnet-5-5",
+      "task": "invoice",
+      "mode": "with",
+      "run": 2,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 130,
+      "inputTokens": 58000,
+      "outputTokens": 4800,
+      "costUsd": 0.16,
+      "turns": 8,
+      "failedBuilds": 1,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:sonnet",
+      "agent": "claude",
+      "model": "sonnet",
+      "resolvedModel": "claude-sonnet-5-5",
+      "task": "invoice",
+      "mode": "with",
+      "run": 3,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 120,
+      "inputTokens": 57000,
+      "outputTokens": 4700,
+      "costUsd": 0.14,
+      "turns": 7,
+      "failedBuilds": 0,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "target": "claude:sonnet",
+      "agent": "claude",
+      "model": "sonnet",
+      "resolvedModel": "claude-sonnet-5-5",
+      "task": "invoice",
+      "mode": "without",
+      "run": 1,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 210,
+      "inputTokens": 65000,
+      "outputTokens": 5500,
+      "costUsd": 0.3,
+      "turns": 15,
+      "failedBuilds": 4,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": false
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:sonnet",
+      "agent": "claude",
+      "model": "sonnet",
+      "resolvedModel": "claude-sonnet-5-5",
+      "task": "invoice",
+      "mode": "without",
+      "run": 2,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 200,
+      "inputTokens": 64000,
+      "outputTokens": 5400,
+      "costUsd": 0.28,
+      "turns": 14,
+      "failedBuilds": 5,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:sonnet",
+      "agent": "claude",
+      "model": "sonnet",
+      "resolvedModel": "claude-sonnet-5-5",
+      "task": "invoice",
+      "mode": "without",
+      "run": 3,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 220,
+      "inputTokens": 66000,
+      "outputTokens": 5600,
+      "costUsd": 0.32,
+      "turns": 16,
+      "failedBuilds": 3,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": false
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "codex",
+      "agent": "codex",
+      "model": "",
+      "resolvedModel": "gpt-6.1-sol (reasoning effort high)",
+      "task": "invoice",
+      "mode": "with",
+      "run": 1,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 160,
+      "inputTokens": 62000,
+      "outputTokens": 5200,
+      "costUsd": 0.24,
+      "turns": 12,
+      "failedBuilds": 3,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "codex",
+      "agent": "codex",
+      "model": "",
+      "resolvedModel": "gpt-6.1-sol (reasoning effort high)",
+      "task": "invoice",
+      "mode": "with",
+      "run": 2,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 150,
+      "inputTokens": 61000,
+      "outputTokens": 5100,
+      "costUsd": 0.22,
+      "turns": 11,
+      "failedBuilds": 2,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "codex",
+      "agent": "codex",
+      "model": "",
+      "resolvedModel": "gpt-6.1-sol (reasoning effort high)",
+      "task": "invoice",
+      "mode": "with",
+      "run": 3,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 170,
+      "inputTokens": 63000,
+      "outputTokens": 5300,
+      "costUsd": 0.26,
+      "turns": 13,
+      "failedBuilds": 3,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "codex",
+      "agent": "codex",
+      "model": "",
+      "resolvedModel": "gpt-6.1-sol (reasoning effort high)",
+      "task": "invoice",
+      "mode": "without",
+      "run": 1,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 200,
+      "inputTokens": 64000,
+      "outputTokens": 5400,
+      "costUsd": 0.28,
+      "turns": 14,
+      "failedBuilds": 4,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "codex",
+      "agent": "codex",
+      "model": "",
+      "resolvedModel": "gpt-6.1-sol (reasoning effort high)",
+      "task": "invoice",
+      "mode": "without",
+      "run": 2,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 210,
+      "inputTokens": 65000,
+      "outputTokens": 5500,
+      "costUsd": 0.3,
+      "turns": 15,
+      "failedBuilds": 4,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "codex",
+      "agent": "codex",
+      "model": "",
+      "resolvedModel": "gpt-6.1-sol (reasoning effort high)",
+      "task": "invoice",
+      "mode": "without",
+      "run": 3,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 190,
+      "inputTokens": 63000,
+      "outputTokens": 5300,
+      "costUsd": 0.26,
+      "turns": 13,
+      "failedBuilds": 5,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "opencode:opencode/deepseek-v4.1-flash-free",
+      "agent": "opencode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "resolvedModel": "opencode/deepseek-v4.1-flash-free",
+      "task": "invoice",
+      "mode": "with",
+      "run": 1,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 180,
+      "inputTokens": 60000,
+      "outputTokens": 5000,
+      "costUsd": 0.2,
+      "turns": 10,
+      "failedBuilds": 2,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "opencode:opencode/deepseek-v4.1-flash-free",
+      "agent": "opencode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "resolvedModel": "opencode/deepseek-v4.1-flash-free",
+      "task": "invoice",
+      "mode": "with",
+      "run": 2,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 190,
+      "inputTokens": 61000,
+      "outputTokens": 5100,
+      "costUsd": 0.22,
+      "turns": 11,
+      "failedBuilds": 2,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "opencode:opencode/deepseek-v4.1-flash-free",
+      "agent": "opencode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "resolvedModel": "opencode/deepseek-v4.1-flash-free",
+      "task": "invoice",
+      "mode": "with",
+      "run": 3,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 170,
+      "inputTokens": 59000,
+      "outputTokens": 4900,
+      "costUsd": 0.18,
+      "turns": 9,
+      "failedBuilds": 1,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "opencode:opencode/deepseek-v4.1-flash-free",
+      "agent": "opencode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "resolvedModel": "opencode/deepseek-v4.1-flash-free",
+      "task": "invoice",
+      "mode": "without",
+      "run": 1,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 200,
+      "inputTokens": 62000,
+      "outputTokens": 5200,
+      "costUsd": 0.24,
+      "turns": 12,
+      "failedBuilds": 3,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "opencode:opencode/deepseek-v4.1-flash-free",
+      "agent": "opencode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "resolvedModel": "opencode/deepseek-v4.1-flash-free",
+      "task": "invoice",
+      "mode": "without",
+      "run": 2,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 210,
+      "inputTokens": 63000,
+      "outputTokens": 5300,
+      "costUsd": 0.26,
+      "turns": 13,
+      "failedBuilds": 3,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "opencode:opencode/deepseek-v4.1-flash-free",
+      "agent": "opencode",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "resolvedModel": "opencode/deepseek-v4.1-flash-free",
+      "task": "invoice",
+      "mode": "without",
+      "run": 3,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 205,
+      "inputTokens": 62000,
+      "outputTokens": 5200,
+      "costUsd": 0.24,
+      "turns": 12,
+      "failedBuilds": 3,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:haiku",
+      "agent": "claude",
+      "model": "haiku",
+      "resolvedModel": "claude-haiku-4-0",
+      "task": "invoice",
+      "mode": "with",
+      "run": 1,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 140,
+      "inputTokens": 59000,
+      "outputTokens": 4900,
+      "costUsd": 0.18,
+      "turns": 9,
+      "failedBuilds": 1,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:haiku",
+      "agent": "claude",
+      "model": "haiku",
+      "resolvedModel": "claude-haiku-4-0",
+      "task": "invoice",
+      "mode": "with",
+      "run": 2,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 130,
+      "inputTokens": 58000,
+      "outputTokens": 4800,
+      "costUsd": 0.16,
+      "turns": 8,
+      "failedBuilds": 1,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:haiku",
+      "agent": "claude",
+      "model": "haiku",
+      "resolvedModel": "claude-haiku-4-0",
+      "task": "invoice",
+      "mode": "with",
+      "run": 3,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 120,
+      "inputTokens": 57000,
+      "outputTokens": 4700,
+      "costUsd": 0.14,
+      "turns": 7,
+      "failedBuilds": 0,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": true
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "target": "claude:haiku",
+      "agent": "claude",
+      "model": "haiku",
+      "resolvedModel": "claude-haiku-4-0",
+      "task": "invoice",
+      "mode": "without",
+      "run": 1,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 210,
+      "inputTokens": 65000,
+      "outputTokens": 5500,
+      "costUsd": 0.3,
+      "turns": 15,
+      "failedBuilds": 4,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": false
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:haiku",
+      "agent": "claude",
+      "model": "haiku",
+      "resolvedModel": "claude-haiku-4-0",
+      "task": "invoice",
+      "mode": "without",
+      "run": 2,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 200,
+      "inputTokens": 64000,
+      "outputTokens": 5400,
+      "costUsd": 0.28,
+      "turns": 14,
+      "failedBuilds": 5,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": true
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    },
+    {
+      "target": "claude:haiku",
+      "agent": "claude",
+      "model": "haiku",
+      "resolvedModel": "claude-haiku-4-0",
+      "task": "invoice",
+      "mode": "without",
+      "run": 3,
+      "invocation": "explicit",
+      "isolated": false,
+      "startedAt": "2026-11-01T10:00:00Z",
+      "skillCommit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+      "skillDirty": false,
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 220,
+      "inputTokens": 66000,
+      "outputTokens": 5600,
+      "costUsd": 0.32,
+      "turns": 16,
+      "failedBuilds": 3,
+      "skillUsed": true,
+      "globalSkillUsed": false,
+      "checks": [
+        {
+          "text": "Builds",
+          "passed": true
+        },
+        {
+          "text": "Handles an empty list",
+          "passed": false
+        },
+        {
+          "text": "Returns Error with the cause",
+          "passed": false
+        },
+        {
+          "text": "Keeps the demo output",
+          "passed": false
+        }
+      ]
+    }
+  ]
+}

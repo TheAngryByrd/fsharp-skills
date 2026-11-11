@@ -14,7 +14,7 @@ Supported agents:
 - Each agent CLI that you test, installed, on `PATH`, and signed in.
 - `git`, to make each workspace a repository. Codex and opencode stop the project skill search at the repository root.
 - For rubric checks, Claude Code (`claude`) signed in, or another judge command. See [Rubric checks](#rubric-checks).
-- The prerequisites of the skill's graders. The `fsharp-native-aot` graders need the .NET 10 SDK, NuGet access, and the Native AOT toolchain. Use `-SkipNative` without the toolchain. The `fsharp-nullness-interop` graders need the .NET 10 SDK and NuGet access. The `fsharp-env-capabilities` `startup-settings` grader needs the .NET 10 SDK and NuGet access for the `Microsoft.Extensions` 10.0.0 packages. The `fsharp-library-api-design` graders need the .NET 10 SDK, and the `minor-release` grader runs `public-surface.ps1` from `skills/fsharp-signature-files`. Its grader tests need NuGet access.
+- The prerequisites of the skill's graders. The `fsharp-native-aot` graders need the .NET 10 SDK, NuGet access, and the Native AOT toolchain. Use `-SkipNative` without the toolchain. The `fsharp-nullness-interop` graders need the .NET 10 SDK and NuGet access. The `fsharp-env-capabilities` `startup-settings` grader needs the .NET 10 SDK and NuGet access for the `Microsoft.Extensions` 10.0.0 packages. The `fsharp-library-api-design` graders need the .NET 10 SDK, and the `minor-release` grader runs `public-surface.ps1` from `skills/fsharp-signature-files`. Its grader tests need NuGet access.
 
 > [!CAUTION]
 > The runner starts agents without permission prompts: `--dangerously-skip-permissions`, `--sandbox danger-full-access`, and `--auto`. An agent can run any command as your user. Run evals only on a machine or container that you trust with that access.
@@ -50,7 +50,7 @@ Each run has its own directory under `<OutputRoot>/<run-id>/rNNN/`:
 - `ws/`: the agent's workspace. It holds `TASK.md`, the task input files, and the agent's output.
 - `transcript.jsonl` and `stderr.txt`: the agent's JSON event stream and error output.
 - `grade/grading.json`: the grader's checks.
-- `run.json`: the run's settings, metrics, and checks.
+- `run.json`: the run's settings, metrics, checks, skill name, start time, skill commit, and exact model. [Dashboard](#dashboard) describes the last four.
 
 For a run with the skill, the runner copies the skill to `ws/.claude/skills/<skill>-eval/` and `ws/.agents/skills/<skill>-eval/`. Claude Code reads the first folder, Codex reads the second, and opencode reads both. The runner also changes the `name:` line to `<skill>-eval`. A global copy of the same skill can be an older version, and the distinct name keeps it from standing in for the version under test.
 
@@ -89,6 +89,96 @@ pwsh ./evals/grade-evals.ps1 -ResultDir <OutputRoot>/<run-id>
 ```
 
 Use `-Task` to grade only some tasks. The script updates each `run.json`, `results.json`, and `summary.md`. It keeps the `turns` and `failedBuilds` values in each `run.json`. When a `run.json` does not have these values, the script reads them from `transcript.jsonl`.
+
+## Dashboard
+
+The dashboard is a static page that compares runs with a skill and runs without it. It has one row for each skill, task, and target. It is published at https://theangrybyrd.github.io/fsharp-skills/.
+
+The page reads result sets that are committed in `evals/results/`. A result set is the path-free copy of one result folder.
+
+### Export a result set
+
+Run this command after a run, or after you grade a result folder again:
+
+```powershell
+pwsh ./evals/export-results.ps1 -ResultDir <OutputRoot>/<run-id>
+```
+
+The script writes `evals/results/<skill>/<run-id>.json`. Commit this file in the same pull request as the skill or eval change that the runs measure.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `-ResultDir` | required | A result folder that holds `r*/run.json` files. The script does not read `results.json`, so a partial folder also exports. |
+| `-ResolvedModel` | none | A hashtable from target label to exact model, for example `@{ 'claude:sonnet' = 'claude-sonnet-5-5' }`. The script uses an entry only for a run that has no `resolvedModel`. |
+| `-ResultsRoot` | `evals/results` | Parent folder of the result sets. |
+| `-UserName` | your account name | The user name that the script refuses in retained text. If your user name is also a word in check text or an agent name, such as `claude`, pass `''` to turn off this check. |
+| `-Force` | off | Replaces an existing result set that has different content. |
+
+- The script keeps only these fields of each run: `target`, `agent`, `model`, `resolvedModel`, `task`, `mode`, `run`, `invocation`, `isolated`, `startedAt`, `skillCommit`, `skillDirty`, `exitCode`, `timedOut`, `seconds`, `inputTokens`, `outputTokens`, `costUsd`, `turns`, `failedBuilds`, `skillUsed`, `globalSkillUsed`, and the `text` and `passed` values of each check. It drops `workspace`, `command`, and the check evidence, because they hold local paths and user names.
+- The script does not rewrite text. It refuses the result set when a retained text field (`target`, `agent`, `model`, `resolvedModel`, `task`, `invocation`, `skillCommit`, or the `text` of a check) holds a backslash, a `~/` path, a drive path such as `C:/x`, a word that starts with one or more `/` (`/opt/data/x.fs`, `//server/x`), or your user name as a whole word (3 or more characters, any case). The error names the run and the field, and no file is written. The error does not repeat the text. Change the grader so that its check text and target labels hold no local paths and no user name. A URL (`https://a/b`), a relative path (`a/b`), and a number such as `12:30/24` pass. A private word with no path syntax, for example a client name that a check prints alone, is not detected. Read `git diff` of a new result set before you commit it.
+- The script finds the skill from `skill` in `run.json`. A run from an older runner has no `skill`, so the script reads it from the `evals.json` that defines the task.
+- The script fails when a run has no exact model and `-ResolvedModel` has no entry for its target. Every dashboard row names the exact model of its target. The page build also rejects a committed run with an empty `resolvedModel`.
+- The result folder name must be the run id (`yyyyMMdd-HHmmss`). The script and the page build reject any other name.
+- The script writes the file to a temporary file in the same folder and then moves it over the target, so an interrupted export keeps the previous file.
+- A second export of the same folder writes the same file. When the file exists with different content, the script stops unless you use `-Force`.
+
+The runner records the exact model in `resolvedModel`:
+
+- Claude Code: the model name that most assistant messages in `transcript.jsonl` carry. It falls back to the `init` event. When the transcript has no model, the model is unknown, and the export needs `-ResolvedModel`. The runner never records the target alias (`sonnet`) as an exact model.
+- Codex: the `-m` value, or `model` from `~/.codex/config.toml` (`$CODEX_HOME/config.toml` when `CODEX_HOME` is set). It adds `model_reasoning_effort` from the same file. With `-Isolate` and no `-m` value, the model is unknown, and the export needs `-ResolvedModel`. The model is also unknown when `config.toml` has a top-level `profile` key of any value form and there is no `-m` value, because the profile can change the model. The runner reads `model` and `model_reasoning_effort` as basic strings (`"..."`) or literal strings (`'...'`). The runner reads the Codex and opencode model before it starts the agent, so a change of `config.toml` during the run does not change the label.
+- opencode: the target model text. The transcript does not record the model.
+
+The runner also records `skill`, `startedAt` (UTC), `skillCommit` (`git rev-parse HEAD`), and `skillDirty` in each `run.json`. The runner reads `skillCommit` and `skillDirty` again for each run, just before the agent starts, so a change during a long batch shows in the runs that follow it. `skillDirty` is `true` when `git status --porcelain` prints a line for `skills/<skill>`, `evals/<skill>`, or `evals/lib`. These paths hold the skill, its tasks and graders, and the shared runner and grader code. `grade-evals.ps1` keeps these fields, so a result folder that you grade again keeps the commit of its runs.
+
+### Build the page
+
+```powershell
+pwsh ./evals/dashboard/build-dashboard.ps1 -OutDir <dir>
+```
+
+Commit links on the page point to `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY` when both variables are set (they are in GitHub Actions), and to https://github.com/TheAngryByrd/fsharp-skills otherwise. The build writes this address to `repoUrl` in `data.js`.
+
+Open `<dir>/index.html` in a browser. The page also works from `file://`, because the data is in `data.js`. Use `-ResultsRoot` to read result sets from another folder. A folder with no result sets gives a page that lists each skill with "No results yet".
+
+### Publish the page
+
+The workflow `.github/workflows/eval-dashboard.yml` runs on manual dispatch and on a push to `master` that changes one of these paths:
+
+- `evals/results/**`
+- `evals/dashboard/**`
+- `evals/lib/**`
+- `evals/export-results.ps1`
+- `evals/run-evals.ps1`
+- `evals/tests/**`
+- `evals/*/evals.json`
+- `skills/*/SKILL.md`
+- `.github/workflows/eval-dashboard.yml`
+
+It runs `evals/tests/Dashboard.Tests.ps1` and `evals/tests/Metrics.Tests.ps1`, builds the page, and deploys it with GitHub Pages.
+
+The repository maintainer must set **Settings > Pages > Source** to **GitHub Actions** one time. Until then, the deploy job fails.
+
+### Verdicts
+
+Each row compares the newest result set of one target, one exact model, and one task. When runs of one target used two models, the page shows one row for each model, and no comparison mixes models. A row whose newest result set is older than the newest result set of another model of the same target has the label "older model". A run with the skill counts only when the transcript shows skill use, the same rule as `summary.md`. The pass rate is the mean, over counted runs, of passed checks divided by graded checks. The first rule that matches gives the verdict. The thresholds are in one table at the top of `evals/dashboard/Dashboard.psm1`.
+
+| Verdict | Rule |
+|---|---|
+| Not comparable | A mode has no counted run, or no counted run has a graded check. |
+| Better | The pass rate with the skill is higher by 10 points or more. |
+| Worse | The pass rate with the skill is lower by 10 points or more. |
+| Less effort | The pass rate is within 10 points, and mean failed builds are lower by 1 or more, or mean turns are lower by 25% or more. |
+| No change | All other cases. |
+
+A row shows "too few runs" when a mode has fewer than 3 counted runs. These thresholds are heuristics, not statistical tests.
+
+Test the export, the aggregation, and the build with the fixtures in `tests/fixtures/results/`:
+
+```powershell
+pwsh ./evals/tests/Dashboard.Tests.ps1
+```
+
+The script exits with code 1 and lists each failed check.
 
 ## Isolation
 

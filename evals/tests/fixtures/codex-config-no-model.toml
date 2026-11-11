@@ -1,0 +1,4 @@
+approval_policy = "never"
+
+[projects.demo]
+model = "other-model"

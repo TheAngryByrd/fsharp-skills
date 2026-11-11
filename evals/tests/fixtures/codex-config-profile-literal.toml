@@ -1,0 +1,6 @@
+profile = 'work'
+model = "gpt-test-1"
+model_reasoning_effort = "high"
+
+[profiles.work]
+model = "gpt-work"
