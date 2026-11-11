@@ -1,0 +1,5 @@
+model = "gpt-test-1"
+model_reasoning_effort = "high"
+
+[projects.demo]
+model = "other-model"

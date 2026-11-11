@@ -26,6 +26,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 Import-Module (Join-Path $PSScriptRoot 'lib/Agents.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'lib/Results.psm1') -Force
 
 $repo = Split-Path $PSScriptRoot
 $skillDir = Join-Path $repo "skills/$Skill"
@@ -45,7 +46,7 @@ foreach ($t in $targets) {
     if (-not $DryRun) { $null = Resolve-AgentCommand $t.Agent }
 }
 
-$runId = Get-Date -Format 'yyyyMMdd-HHmmss'
+$runId = [DateTime]::Now.ToString('yyyyMMdd-HHmmss', [Globalization.CultureInfo]::InvariantCulture)
 $root = Join-Path $OutputRoot $runId
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 
@@ -73,11 +74,14 @@ foreach ($t in $targets) {
 
                 $label = "$($t.Label) | $($taskSpec.id) | $m skill | run $i"
                 Write-Host "[$n] $label"
+                $provenance = Get-SkillProvenance -Repo $repo -Skill $Skill
                 $info = [ordered]@{
                     id = $n; target = $t.Label; agent = $t.Agent; model = $t.Model; task = $taskSpec.id
                     mode = $m; run = $i; invocation = $Invocation; workspace = $ws; isolated = [bool]$Isolate
+                    skill = $Skill; startedAt = Format-IsoUtc ([DateTime]::UtcNow); skillCommit = $provenance.SkillCommit; skillDirty = $provenance.SkillDirty
                 }
 
+                if ($t.Agent -ne 'claude') { $info.resolvedModel = Get-ResolvedModel -Agent $t.Agent -Model $t.Model -Isolated:$Isolate }
                 $message = Get-AgentMessage -Skill $Skill -WithSkill:($m -eq 'with') -Invocation $Invocation
                 $agentRun = Invoke-Agent -Target $t -Workspace $ws -RunDir $runDir -Message $message -WithSkill:($m -eq 'with') -HiddenSkills $contamination `
                     -Isolate:$Isolate -TimeoutMinutes $TimeoutMinutes -DryRun:$DryRun
@@ -93,6 +97,7 @@ foreach ($t in $targets) {
                 $info.costUsd = $metrics.CostUsd
                 $info.turns = $metrics.Turns
                 $info.failedBuilds = $metrics.FailedBuilds
+                if ($t.Agent -eq 'claude') { $info.resolvedModel = Get-ResolvedModel -Agent claude -Model $t.Model -TranscriptPath $agentRun.Stdout }
                 $info.skillUsed = $metrics.SkillUsed
                 $info.globalSkillUsed = $metrics.GlobalSkillUsed
 

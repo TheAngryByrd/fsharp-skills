@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>F# Skills Eval Dashboard</title>
+<link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+<header class="page-header">
+  <h1>F# Skills Eval Dashboard</h1>
+  <p id="freshness" class="muted" aria-live="polite">Loading results.</p>
+  <details class="note">
+    <summary>How to read this table</summary>
+    <p>Each row compares runs with a skill and runs without it. A row is one target and one task in the newest result set. A run with the skill counts only when its transcript shows that the agent loaded the skill.</p>
+    <ul id="rules"></ul>
+    <p>These thresholds are heuristics. They are not statistical tests. Compare pass rates only with 3 or more counted runs in each mode.</p>
+  </details>
+</header>
+<main>
+  <form id="filters" class="filters" role="search" aria-label="Filter results">
+    <label>Skill <select id="filter-skill"><option value="">All skills</option></select></label>
+    <label>Agent <select id="filter-agent"><option value="">All agents</option></select></label>
+    <label class="grow">Search <input id="filter-text" type="search" placeholder="Task, target, or model" autocomplete="off"></label>
+  </form>
+  <p id="empty" class="muted" hidden>No row matches the filters.</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Eval results table">
+    <table id="results">
+      <thead>
+        <tr>
+          <th scope="col">Target and exact model</th>
+          <th scope="col">Skill loaded</th>
+          <th scope="col">Pass rate<br><span class="sub">without to with</span></th>
+          <th scope="col">All checks passed<br><span class="sub">runs, without to with</span></th>
+          <th scope="col">Turns change<br><span class="sub">mean</span></th>
+          <th scope="col">Failed builds change<br><span class="sub">mean</span></th>
+          <th scope="col">Time change<br><span class="sub">mean</span></th>
+          <th scope="col">Tokens change<br><span class="sub">mean</span></th>
+          <th scope="col">Counted runs<br><span class="sub">with / without</span></th>
+          <th scope="col">Verdict</th>
+          <th scope="col">Result set and skill commit</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+<noscript><p class="muted">This page needs JavaScript.</p></noscript>
+<script src="data.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>

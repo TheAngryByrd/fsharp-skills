@@ -21,12 +21,10 @@ $results = [System.Collections.Generic.List[object]]::new()
 $skill = $null
 foreach ($file in Get-ChildItem -Path $ResultDir -Filter 'run.json' -Recurse -Depth 1 | Sort-Object FullName) {
     $run = Get-Content -Raw $file.FullName | ConvertFrom-Json
-    $spec = $null
-    foreach ($evals in Get-ChildItem -Path $PSScriptRoot -Filter 'evals.json' -Recurse -Depth 1) {
-        $candidate = Get-Content -Raw $evals.FullName | ConvertFrom-Json
-        if ($candidate.tasks.id -contains $run.task) { $spec = $candidate; $evalDir = $evals.DirectoryName; break }
-    }
-    if (-not $spec) { throw "No evals.json defines task $($run.task)." }
+    $found = Find-EvalSpec -EvalsRoot $PSScriptRoot -TaskId $run.task
+    if (-not $found) { throw "No evals.json defines task $($run.task)." }
+    $spec = $found.Spec
+    $evalDir = $found.Dir
     $skill = $spec.skill
     $transcript = Join-Path $file.DirectoryName 'transcript.jsonl'
     $hasMetrics = $run.PSObject.Properties['turns'] -and $run.PSObject.Properties['failedBuilds'] -and $null -ne $run.turns

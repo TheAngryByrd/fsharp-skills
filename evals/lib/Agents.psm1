@@ -346,6 +346,11 @@ function Format-Mean([object[]]$Values) {
     if ($null -ne $mean) { '{0:n1}' -f $mean } else { '-' }
 }
 
+function Format-TargetLabel([object[]]$Runs) {
+    $models = @($Runs | ForEach-Object { Get-RunValue $_ 'resolvedModel' } | Where-Object { $_ } | Sort-Object -Unique)
+    "$($Runs[0].target) ($(if ($models.Count) { $models -join ', ' } else { 'model unknown' }))"
+}
+
 function Write-Summary {
     param([Parameter(Mandatory)][object[]]$Results, [Parameter(Mandatory)][string]$Root, [string]$Skill, [AllowNull()][object[]]$Contamination = @())
     $Contamination = @($Contamination | Where-Object { $_ })
@@ -364,12 +369,12 @@ function Write-Summary {
         $r = @($all | Where-Object { $_.mode -ne 'with' -or $_.skillUsed })
         $notLoaded = $all.Count - $r.Count
         if ($r.Count -eq 0) {
-            $lines += '| {0} | {1} | {2} | 0 | - | - | - | - | - | - | {3} |' -f $all[0].target, $all[0].task, $all[0].mode, $notLoaded
+            $lines += '| {0} | {1} | {2} | 0 | - | - | - | - | - | - | {3} |' -f (Format-TargetLabel $all), $all[0].task, $all[0].mode, $notLoaded
             continue
         }
         $rate = Get-Mean ($r | ForEach-Object { if (($_.passed + $_.failed) -gt 0) { $_.passed / ($_.passed + $_.failed) } })
         $tok = Get-Mean ($r | ForEach-Object { if ($null -ne $_.inputTokens) { $_.inputTokens + $_.outputTokens } })
-        $lines += '| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} |' -f $r[0].target, $r[0].task, $r[0].mode, $r.Count,
+        $lines += '| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} |' -f (Format-TargetLabel $all), $r[0].task, $r[0].mode, $r.Count,
             $(if ($null -ne $rate) { '{0:p0}' -f $rate } else { '-' }),
             (($r | Measure-Object skipped -Sum).Sum),
             ('{0:n0}' -f (Get-Mean $r.seconds)),
@@ -382,7 +387,7 @@ function Write-Summary {
     $lines += '## Checks'
     foreach ($g in $Results | Group-Object target, task) {
         $lines += ''
-        $lines += "### $($g.Group[0].target) | $($g.Group[0].task)"
+        $lines += "### $(Format-TargetLabel @($g.Group)) | $($g.Group[0].task)"
         $lines += ''
         $lines += '| Check | With skill | Without skill |'
         $lines += '|---|---|---|'
@@ -402,5 +407,79 @@ function Write-Summary {
     $text
 }
 
+function Get-CodexConfigLine {
+    param([Parameter(Mandatory)][string]$ConfigPath, [Parameter(Mandatory)][string]$Key)
+    if (-not (Test-Path $ConfigPath)) { return $null }
+    foreach ($line in Get-Content $ConfigPath) {
+        if ($line -match '^\s*\[') { return $null }
+        if ($line -match ('^\s*' + [regex]::Escape($Key) + '\s*=')) { return $line }
+    }
+    $null
+}
+
+function Get-CodexConfigValue {
+    param([Parameter(Mandatory)][string]$ConfigPath, [Parameter(Mandatory)][string]$Key)
+    $line = Get-CodexConfigLine $ConfigPath $Key
+    if ($line -and $line -match ('^\s*' + [regex]::Escape($Key) + '\s*=\s*(?:"(?<basic>[^"]*)"|''(?<literal>[^'']*)'')')) {
+        return "$($Matches['basic'])$($Matches['literal'])"
+    }
+    $null
+}
+
+function Get-ResolvedModel {
+    # An empty result means the exact model is unknown. The export refuses a run with an empty result.
+    param([Parameter(Mandatory)][string]$Agent, [string]$Model = '', [string]$TranscriptPath = '', [string]$CodexConfigPath = '', [switch]$Isolated)
+    switch ($Agent) {
+        'claude' {
+            if (-not $TranscriptPath) { return '' }
+            $models = @(ConvertFrom-JsonLines $TranscriptPath | Where-Object { $_.PSObject.Properties['type'] -and $_.type -eq 'assistant' } |
+                    ForEach-Object { if ($_.message.PSObject.Properties['model']) { "$($_.message.model)" } } | Where-Object { $_ -and $_ -notlike '<*' })
+            if ($models.Count) { return ($models | Group-Object | Sort-Object Count -Descending | Select-Object -First 1).Name }
+            $init = ConvertFrom-JsonLines $TranscriptPath | Where-Object { $_.PSObject.Properties['subtype'] -and $_.subtype -eq 'init' -and $_.PSObject.Properties['model'] } | Select-Object -First 1
+            if ($init) { return "$($init.model)" }
+            ''
+        }
+        'codex' {
+            $effort = $null
+            $configured = $null
+            $configProfile = $null
+            if (-not $Isolated) {
+                if (-not $CodexConfigPath) {
+                    $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path (Get-UserHome) '.codex' }
+                    $CodexConfigPath = Join-Path $codexHome 'config.toml'
+                }
+                $configured = Get-CodexConfigValue $CodexConfigPath 'model'
+                $effort = Get-CodexConfigValue $CodexConfigPath 'model_reasoning_effort'
+                $configProfile = Get-CodexConfigLine $CodexConfigPath 'profile'
+            }
+            if ($configProfile -and -not $Model) { return '' }
+            $name = if ($Model) { $Model } else { $configured }
+            if (-not $name) { return '' }
+            if ($effort) { "$name (reasoning effort $effort)" } else { $name }
+        }
+        default { $Model }
+    }
+}
+
+function Get-SkillProvenance {
+    param([Parameter(Mandatory)][string]$Repo, [Parameter(Mandatory)][string]$Skill)
+    $commit = $null
+    $dirty = $false
+    if (Get-Command git -CommandType Application -ErrorAction SilentlyContinue) {
+        $head = git -C $Repo rev-parse HEAD 2>$null
+        if ($LASTEXITCODE -eq 0) { $commit = "$head".Trim() }
+        $dirty = [bool](git -C $Repo status --porcelain -- "skills/$Skill" "evals/$Skill" 'evals/lib' 2>$null)
+    }
+    [pscustomobject]@{ SkillCommit = $commit; SkillDirty = $dirty }
+}
+
+function Find-EvalSpec {
+    param([Parameter(Mandatory)][string]$EvalsRoot, [Parameter(Mandatory)][string]$TaskId)
+    foreach ($file in Get-ChildItem -Path $EvalsRoot -Filter 'evals.json' -Recurse -Depth 1) {
+        $spec = Get-Content -Raw $file.FullName | ConvertFrom-Json
+        if ($spec.tasks.id -contains $TaskId) { return [pscustomobject]@{ Spec = $spec; Dir = $file.DirectoryName } }
+    }
+}
+
 Export-ModuleMember -Function ConvertTo-AgentTarget, Get-AgentMessage, Get-InstallName, Resolve-AgentCommand, Find-ConflictingSkills, Install-Skill,
-    Initialize-WorkspaceRepo, Invoke-Agent, Get-AgentMetrics, Write-Summary
+    Initialize-WorkspaceRepo, Invoke-Agent, Get-AgentMetrics, Get-ResolvedModel, Get-SkillProvenance, Find-EvalSpec, Write-Summary

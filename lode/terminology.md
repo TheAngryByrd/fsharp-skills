@@ -33,6 +33,9 @@
 - Binary swap - A check that copies the new library DLL into the output folder of a consumer that was built against the old version, then runs the consumer.
 - Old consumer - A consumer binary that was compiled against the baseline library and runs with the new DLL in place of the old one.
 - Cross-assembly inlining - In a Release build, the F# compiler copies small function bodies from the optimization data in a referenced F# DLL. `--nooptimizationdata` on the library stops it, except for `inline` functions.
+- Result set - The committed, path-free copy of one eval result folder: `evals/results/<skill>/<run-id>.json`. It holds an allowlist of fields of each run.
+- Comparison - The runs with the skill and the runs without it for one skill, task, target, and result set, with the mode stats, the verdict, and the check matrix.
+- Verdict - The direction of a comparison (`better`, `worse`, `less-effort`, `no-change`, or `not-comparable`) with a flag for too few counted runs and a one-sentence reason. An ordered rule table gives it.
 
 Use these terms consistently in the Lode, `evals/README.md`, and skill documentation. A failure alone does not prove the expected compiler constraint.
 
