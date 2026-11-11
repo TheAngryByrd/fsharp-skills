@@ -73,6 +73,22 @@ try {
     Assert-Equal '| claude (claude-test-model) | fix | with | 2 | 100% | 0 | 10 | 2 | 5.5 | 1.5 | 0 |' $rows[0] 'summary with-skill row names the exact model'
     Assert-Equal '| claude (claude-test-model) | fix | without | 2 | 100% | 0 | 10 | 2 | 12.0 | 5.0 | 0 |' $rows[1] 'summary without-skill row names the exact model'
     Assert-Equal $true ($summary -match '(?m)^### claude \(claude-test-model\) \| fix$') 'summary check heading names the exact model'
+    $large = New-Run 'with' 4 0; $large.seconds = 1235; $large.inputTokens = 10000; $large.outputTokens = 223
+    $original = [Globalization.CultureInfo]::CurrentCulture
+    try {
+        foreach ($culture in 'de-DE', 'fr-FR', '') {
+            [Globalization.CultureInfo]::CurrentCulture = [Globalization.CultureInfo]::new($culture)
+            $cultureSummary = Write-Summary -Root $root -Skill 'demo' -Results @(
+                New-Run 'with' 4 0; New-Run 'with' 7 3; New-Run 'without' 12 5; New-Run 'without' $null $null)
+            $cultureRows = @($cultureSummary -split "`n" | Where-Object { $_ -match '^\| claude \(' })
+            Assert-Equal ($rows -join "`n") ($cultureRows -join "`n") "summary rows do not change under the culture '$culture'"
+            $largeRow = @((Write-Summary -Root $root -Skill 'demo' -Results @($large)) -split "`n" | Where-Object { $_ -match '^\| claude \(' })[0]
+            Assert-Equal '| claude (claude-test-model) | fix | with | 1 | 100% | 0 | 1,235 | 10,223 | 4.0 | 0.0 | 0 |' $largeRow "summary thousands separators under the culture '$culture'"
+        }
+    } finally { [Globalization.CultureInfo]::CurrentCulture = $original }
+    $noSeconds = New-Run 'with' 4 0; $noSeconds.seconds = $null
+    $noSecondsRow = @((Write-Summary -Root $root -Skill 'demo' -Results @($noSeconds)) -split "`n" | Where-Object { $_ -match '^\| claude \(' })[0]
+    Assert-Equal '| claude (claude-test-model) | fix | with | 1 | 100% | 0 | - | 2 | 4.0 | 0.0 | 0 |' $noSecondsRow 'summary shows - for a run without seconds'
     $mixed = New-Run 'with' 4 0; $mixed.resolvedModel = 'claude-other-model'
     $unknown = New-Run 'with' 4 0; $unknown.PSObject.Properties.Remove('resolvedModel'); $unknown.target = 'codex'
     $mixedSummary = Write-Summary -Root $root -Skill 'demo' -Results @((New-Run 'with' 4 0), $mixed, $unknown)
