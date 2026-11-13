@@ -8,7 +8,7 @@ result, and exits with code 1 on a mismatch.
 flowchart LR
     Json[appsettings.json] --> Binder[Configuration binder]
     Binder --> Dto["[<CLIMutable>] DTO"]
-    Dto --> Parse["parse: Dto -> Result<Settings, string list>"]
+    Dto --> Parse["parse: Dto -> Result<Settings, SettingsError list>"]
     Parse -->|Error| Stop[Stop at startup, list every error]
     Parse -->|Ok| Settings[Validated settings]
     Settings --> Accessor[IProvideXSettings]
@@ -68,15 +68,33 @@ type MailSettingsDto =
       Retry: RetryDto }
 ```
 
+Each error is a union case. A case names the configuration key with a union, not with text:
+
 ```fsharp
-let parse (dto: MailSettingsDto) : Result<MailSettings, string list> =
+[<RequireQualifiedAccess>]
+type MailKey =
+    | Host
+    | Port
+    | From
+    | RetryAttempts
+
+type MailSettingsError =
+    | SectionMissing
+    | Required of MailKey
+    | NotAWholeNumber of MailKey * raw: string
+    | PortOutOfRange of port: int
+    | AttemptsBelowOne of attempts: int
+```
+
+```fsharp
+let parse (dto: MailSettingsDto) : Result<MailSettings, MailSettingsError list> =
     match Option.ofObj (box dto) with
-    | None -> Error [ "the Mail section is missing" ]
+    | None -> Error [ SectionMissing ]
     | Some _ ->
         validation {
-            let! host = required "Host" dto.Host
+            let! host = required MailKey.Host dto.Host
             and! port = port dto.Port
-            and! from = required "From" dto.From
+            and! from = required MailKey.From dto.From
             and! retry = retry dto.Retry
             return { Host = host; Port = port; From = from; Recipients = ...; Retry = retry }
         }
@@ -88,16 +106,28 @@ One helper converts the number text and reports the key:
 let private wholeNumber key (value: string) =
     match Int32.TryParse(value, Globalization.NumberStyles.Integer, Globalization.CultureInfo.InvariantCulture) with
     | true, number -> Ok number
-    | false, _ -> Error $"{key} must be a whole number, got '{value}'"
+    | false, _ -> Error(NotAWholeNumber(key, value))
 ```
 
 `Port = "ten"` and `Retry:Attempts = "x"`, with no `Host` and no `From`, give all four errors:
 
 ```text
-Error ["Host is required"; "Port must be a whole number, got 'ten'"; "From is required"; "Retry:Attempts must be a whole number, got 'x'"]
+Error [Required Host; NotAWholeNumber (Port, "ten"); Required From; NotAWholeNumber (RetryAttempts, "x")]
 ```
 
-Name the configuration key in each error. The reader fixes `appsettings.json`, not the F# code.
+A test or a caller matches on the cases. Make the message text only at the edge that shows it, and name the configuration key in it. The reader fixes `appsettings.json`, not the F# code:
+
+```fsharp
+module MailSettingsError =
+    let message error =
+        match error with
+        | SectionMissing -> "the Mail section is missing"
+        | Required key -> $"{MailKey.path key} is required"
+        | NotAWholeNumber(key, raw) -> $"{MailKey.path key} must be a whole number, got '{raw}'"
+        ...
+```
+
+The `raw` payload is the text from the configuration. Do not keep raw text of a key that can hold a secret, such as a connection string.
 
 ## Fail at startup
 
@@ -109,7 +139,7 @@ Parse in the composition root when nothing else in the app uses Options for this
 let settings =
     match configuration.GetSection("Mail").Get<MailSettingsDto>() |> MailSettings.parse with
     | Ok settings -> settings
-    | Error errors -> failwithf "Invalid Mail settings:\n  %s" (String.concat "\n  " errors)
+    | Error errors -> failwithf "Invalid Mail settings:\n  %s" (errors |> List.map MailSettingsError.message |> String.concat "\n  ")
 
 services.AddSingleton<MailSettings>(settings)
 ```
@@ -123,14 +153,14 @@ type MailSettingsValidator() =
         member _.Validate(_, dto) =
             match MailSettings.parse dto with
             | Ok _ -> ValidateOptionsResult.Success
-            | Error errors -> ValidateOptionsResult.Fail errors
+            | Error errors -> ValidateOptionsResult.Fail(errors |> List.map MailSettingsError.message)
 
 services.AddOptions<MailSettingsDto>().Bind(configuration.GetSection "Mail").ValidateOnStart() |> ignore
 services.AddSingleton<IValidateOptions<MailSettingsDto>, MailSettingsValidator>() |> ignore
 services.AddSingleton<MailSettings>(fun sp ->
     match MailSettings.parse (sp.GetRequiredService<IOptions<MailSettingsDto>>().Value) with
     | Ok settings -> settings
-    | Error errors -> invalidOp (String.concat "; " errors))
+    | Error errors -> invalidOp (errors |> List.map MailSettingsError.message |> String.concat "; "))
 ```
 
 `ValidateOnStart` only registers the check. A generic host runs it when the host starts. These

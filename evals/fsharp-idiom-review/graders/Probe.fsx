@@ -73,3 +73,17 @@ check "render: the first backordered line of two, and gold"
       "Discount: -706.66"
       "Total: 1060.00 (gold)"
       "Backordered: M-2" ]
+
+let checkParse name text (expected: OrderLine option) =
+    let actual =
+        try Result.toOption (OrderReport.parseLine text) |> sprintf "%A" with ex -> "exception: " + ex.GetType().Name
+    if actual = sprintf "%A" expected then
+        System.Console.WriteLine("PASS " + name)
+    else
+        System.Console.WriteLine("FAIL " + name + " [" + System.Text.RegularExpressions.Regex.Replace(actual, @"\s+", " ") + "]")
+
+checkParse "parseLine: a valid line" "W-1, 2, 150.50" (Some(line "W-1" 2 150.50m true))
+checkParse "parseLine: two fields is an error" "W-1,2" None
+checkParse "parseLine: a quantity of 0 is an error" "W-1,0,1.00" None
+checkParse "parseLine: a quantity that is not a number is an error" "W-1,two,1.00" None
+checkParse "parseLine: a negative price is an error" "W-1,1,-1" None
