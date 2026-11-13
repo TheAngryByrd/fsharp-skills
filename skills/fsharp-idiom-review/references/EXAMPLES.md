@@ -87,3 +87,15 @@ Use a module-level `let` when the value does not need to be on a type.
 
 Build F# source with Fantomas `Oak` or the Fabulous.AST builders, C# source with Roslyn `SyntaxFactory`, XML with `XElement`, and JSON with `Utf8JsonWriter` or `JsonNode`.
 String concatenation produces invalid output when a value contains a quote, a newline, or a reserved character, and indentation in F# output changes meaning.
+
+## Error types
+
+A `string` error moves the failure kind into text. The caller then compares strings or shows the text and cannot handle one case in a different way. A changed message breaks each caller that compared it, and the compiler finds none of them.
+
+Use one union for one function or one parser. A case holds the typed values that the caller needs, for example `OutOfRange of value: int`, and not a formatted message. Format the message at the edge that shows it.
+
+Use [fsharp-iwsam-errors](../../fsharp-iwsam-errors/SKILL.md) when the errors of several functions compose in one `result` block, or when a nested union needs `Result.mapError` at each call.
+
+Exception: a `string` from outside the domain, such as a message that an external library returned, can be a payload of a named case, for example `StorageFailed of message: string`.
+
+Do not put raw input in a case when the input can contain a secret. A URL can contain a password in its user info, and a connection string contains an account key. A log line or a test failure that prints the error then prints the secret.
