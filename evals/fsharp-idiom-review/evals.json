@@ -12,7 +12,7 @@
         "inputs/Domain.fsx"
       ],
       "grader": "graders/port-order-report.ps1",
-      "prompt": "Port the OrderReport class in OrderReport.cs to F#. Write it in a new script, OrderReport.fsx, that starts with #load \"Domain.fsx\" and uses the Order and OrderLine types from Domain.fsx. Use the camelCase names of the C# methods for the F# functions: computeTotals, tryGetDiscountRate, tier, firstBackordered, and render. render must take an Order and return the same text as the C# Render method. Do not change OrderReport.cs or Domain.fsx. The script must load with `dotnet fsi OrderReport.fsx`.",
+      "prompt": "Port the OrderReport class in OrderReport.cs to F#. Write it in a new script, OrderReport.fsx, that starts with #load \"Domain.fsx\" and uses the Order and OrderLine types from Domain.fsx. Use the camelCase names of the C# methods for the F# functions: computeTotals, tryGetDiscountRate, tier, firstBackordered, parseLine, and render. render must take an Order and return the same text as the C# Render method. parseLine must take the line text and return a Result: Ok with the OrderLine, or Error when the text is not a line. Do not change OrderReport.cs or Domain.fsx. The script must load with `dotnet fsi OrderReport.fsx`.",
       "rubric": [
         {
           "id": "totals-record",
@@ -33,6 +33,10 @@
         {
           "id": "lines-no-index",
           "question": "Does render number the order lines in one walk of the list, for example with List.mapi, List.iteri, Seq.mapi, or List.indexed, and not by reading the list by position, such as order.Lines.[i], order.Lines[i], or List.item i?"
+        },
+        {
+          "id": "parse-error-union",
+          "question": "Is the Error type of parseLine a discriminated union with a case for each failure (for example WrongFieldCount, InvalidQuantity, InvalidPrice), or an interface with static abstract members for each failure, and not string, string list, or exn?"
         }
       ]
     }

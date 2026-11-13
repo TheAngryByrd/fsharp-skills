@@ -79,6 +79,34 @@ public static class OrderReport
         return null;
     }
 
+    public static bool TryParseLine(string text, out OrderLine? line, out string error)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        var parts = text.Split(',');
+        line = null;
+        if (parts.Length != 3)
+        {
+            error = "expected SKU,QUANTITY,PRICE";
+            return false;
+        }
+
+        if (!int.TryParse(parts[1].Trim(), NumberStyles.Integer, inv, out var quantity) || quantity < 1)
+        {
+            error = $"quantity '{parts[1]}' is not a whole number of 1 or more";
+            return false;
+        }
+
+        if (!decimal.TryParse(parts[2].Trim(), NumberStyles.Number, inv, out var price) || price < 0m)
+        {
+            error = $"price '{parts[2]}' is not a number of 0 or more";
+            return false;
+        }
+
+        line = new OrderLine { Sku = parts[0].Trim(), Quantity = quantity, UnitPrice = price, InStock = true };
+        error = "";
+        return true;
+    }
+
     public static string Render(Order order)
     {
         var inv = CultureInfo.InvariantCulture;

@@ -52,39 +52,70 @@ type MailSettings =
       Recipients: string list
       Retry: RetrySettings option }
 
+[<RequireQualifiedAccess>]
+type MailKey =
+    | Host
+    | Port
+    | From
+    | RetryAttempts
+
+module MailKey =
+    let path key =
+        match key with
+        | MailKey.Host -> "Host"
+        | MailKey.Port -> "Port"
+        | MailKey.From -> "From"
+        | MailKey.RetryAttempts -> "Retry:Attempts"
+
+type MailSettingsError =
+    | SectionMissing
+    | Required of MailKey
+    | NotAWholeNumber of MailKey * raw: string
+    | PortOutOfRange of port: int
+    | AttemptsBelowOne of attempts: int
+
+module MailSettingsError =
+    let message error =
+        match error with
+        | SectionMissing -> "the Mail section is missing"
+        | Required key -> $"{MailKey.path key} is required"
+        | NotAWholeNumber(key, raw) -> $"{MailKey.path key} must be a whole number, got '{raw}'"
+        | PortOutOfRange port -> $"Port must be 1 to 65535, got {port}"
+        | AttemptsBelowOne attempts -> $"Retry:Attempts must be 1 or more, got {attempts}"
+
 module MailSettings =
     let private required key (value: string) =
-        if String.IsNullOrWhiteSpace value then Error $"{key} is required" else Ok value
+        if String.IsNullOrWhiteSpace value then Error(Required key) else Ok value
 
     let private wholeNumber key (value: string) =
         match Int32.TryParse(value, Globalization.NumberStyles.Integer, Globalization.CultureInfo.InvariantCulture) with
         | true, number -> Ok number
-        | false, _ -> Error $"{key} must be a whole number, got '{value}'"
+        | false, _ -> Error(NotAWholeNumber(key, value))
 
     let private port (value: string) =
         if String.IsNullOrWhiteSpace value then
-            Error "Port is required"
+            Error(Required MailKey.Port)
         else
-            wholeNumber "Port" value
+            wholeNumber MailKey.Port value
             |> Result.bind (fun number ->
-                if number < 1 || number > 65535 then Error $"Port must be 1 to 65535, got {number}" else Ok number)
+                if number < 1 || number > 65535 then Error(PortOutOfRange number) else Ok number)
 
     let private retry (dto: RetryDto) =
         if isNull (box dto) || String.IsNullOrWhiteSpace dto.Attempts then
             Ok None
         else
-            wholeNumber "Retry:Attempts" dto.Attempts
+            wholeNumber MailKey.RetryAttempts dto.Attempts
             |> Result.bind (fun attempts ->
-                if attempts < 1 then Error $"Retry:Attempts must be 1 or more, got {attempts}" else Ok(Some { Attempts = attempts }))
+                if attempts < 1 then Error(AttemptsBelowOne attempts) else Ok(Some { Attempts = attempts }))
 
-    let parse (dto: MailSettingsDto) : Result<MailSettings, string list> =
+    let parse (dto: MailSettingsDto) : Result<MailSettings, MailSettingsError list> =
         match Option.ofObj (box dto) with
-        | None -> Error [ "the Mail section is missing" ]
+        | None -> Error [ SectionMissing ]
         | Some _ ->
             validation {
-                let! host = required "Host" dto.Host
+                let! host = required MailKey.Host dto.Host
                 and! port = port dto.Port
-                and! from = required "From" dto.From
+                and! from = required MailKey.From dto.From
                 and! retry = retry dto.Retry
                 return
                     { Host = host
@@ -99,7 +130,7 @@ type MailSettingsValidator() =
         member _.Validate(_, dto) =
             match MailSettings.parse dto with
             | Ok _ -> ValidateOptionsResult.Success
-            | Error errors -> ValidateOptionsResult.Fail errors
+            | Error errors -> ValidateOptionsResult.Fail(errors |> List.map MailSettingsError.message)
 
 type ILogger =
     abstract Info: string -> unit
@@ -144,7 +175,7 @@ let compose (configuration: IConfiguration) =
     services.AddSingleton<MailSettings>(fun sp ->
         match MailSettings.parse (sp.GetRequiredService<IOptions<MailSettingsDto>>().Value) with
         | Ok settings -> settings
-        | Error errors -> invalidOp (String.concat "; " errors))
+        | Error errors -> invalidOp (errors |> List.map MailSettingsError.message |> String.concat "; "))
     |> ignore
     services.AddSingleton<ILogger>(consoleLogger) |> ignore
     services.AddTransient<IAppEnvironment, AppEnvironment>() |> ignore
@@ -154,7 +185,7 @@ let composeDirect (configuration: IConfiguration) =
     let settings =
         match configuration.GetSection("Mail").Get<MailSettingsDto>() |> MailSettings.parse with
         | Ok settings -> settings
-        | Error errors -> failwithf "Invalid Mail settings:\n  %s" (String.concat "\n  " errors)
+        | Error errors -> failwithf "Invalid Mail settings:\n  %s" (errors |> List.map MailSettingsError.message |> String.concat "\n  ")
 
     let services = ServiceCollection()
     services.AddSingleton<MailSettings>(settings) |> ignore
@@ -241,15 +272,15 @@ printfn "Parse reports every error"
 
 let bad = config [ "Mail:From", " "; "Mail:Port", "70000"; "Mail:Retry:Attempts", "0" ]
 expect "parse bad section"
-    "Error [\"Host is required\"; \"Port must be 1 to 65535, got 70000\"; \"From is required\"; \"Retry:Attempts must be 1 or more, got 0\"]"
+    "Error [Required Host; PortOutOfRange 70000; Required From; AttemptsBelowOne 0]"
     (outcome (fun () -> bad.GetSection("Mail").Get<MailSettingsDto>() |> MailSettings.parse))
 
 expect "parse text that is not a number, with missing keys"
-    "Error [\"Host is required\"; \"Port must be a whole number, got 'ten'\"; \"From is required\"; \"Retry:Attempts must be a whole number, got 'x'\"]"
+    "Error [Required Host; NotAWholeNumber (Port, \"ten\"); Required From; NotAWholeNumber (RetryAttempts, \"x\")]"
     (outcome (fun () -> (config [ "Mail:Port", "ten"; "Mail:Retry:Attempts", "x" ]).GetSection("Mail").Get<MailSettingsDto>() |> MailSettings.parse))
 
 expect "parse a missing section"
-    "Error [\"the Mail section is missing\"]"
+    "Error [SectionMissing]"
     (outcome (fun () -> (config []).GetSection("Mail").Get<MailSettingsDto>() |> MailSettings.parse))
 
 printfn "Startup"
