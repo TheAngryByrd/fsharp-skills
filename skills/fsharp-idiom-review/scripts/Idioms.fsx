@@ -143,4 +143,32 @@ let parses (text: string) = try XElement.Parse text |> ignore; true with _ -> fa
 check "String concatenation makes invalid XML for a quote in the value" false (parses concatenated)
 check "XElement escapes the value" (true, sku) (parses built, (XElement.Parse built).Attribute(XName.Get "sku").Value)
 
+// 11: string error, then an error union.
+let parsePortBefore (raw: string) : Result<int, string> =
+    match Int32.TryParse raw with
+    | true, p when p > 0 && p < 65536 -> Ok p
+    | true, _ -> Error "Port is out of range"
+    | _ -> Error "Port is not a number"
+
+type PortError =
+    | NotANumber
+    | OutOfRange of value: int
+
+let parsePortAfter (raw: string) : Result<int, PortError> =
+    match Int32.TryParse raw with
+    | true, p when p > 0 && p < 65536 -> Ok p
+    | true, p -> Error(OutOfRange p)
+    | _ -> Error NotANumber
+
+for raw in [ "8080"; "70000"; "x" ] do
+    check $"The error union accepts the same ports as the string error for {raw}" (Result.toOption (parsePortBefore raw)) (Result.toOption (parsePortAfter raw))
+
+let outOfRangeValue raw =
+    match parsePortAfter raw with
+    | Error(OutOfRange v) -> Some v
+    | _ -> None
+
+check "A caller matches the error union case and gets its typed payload" (Some 70000) (outOfRangeValue "70000")
+check "A string error gives the caller only text" (Error "Port is out of range") (parsePortBefore "70000")
+
 if failures > 0 then exit 1

@@ -63,8 +63,10 @@ Measure this before you claim a speed-up. See
    /// An email address that contains one '@'.
    type Email
 
+   type EmailError = | NotOneAtSign of count: int
+
    module Email =
-       val create: input: string -> Result<Email, string>
+       val create: input: string -> Result<Email, EmailError>
        val value: email: Email -> string
    ```
 

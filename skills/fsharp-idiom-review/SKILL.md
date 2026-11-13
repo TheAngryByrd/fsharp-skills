@@ -1,6 +1,6 @@
 ---
 name: fsharp-idiom-review
-description: Review an F# change for C#-shaped code before you finish it. Use when writing, porting from C#, or reviewing F# that returns tuples, uses out parameters or bool * value pairs, chains if/elif on discrete values, uses let mutable with loops, indexes lists by position, makes several passes over one collection, or builds code text by string concatenation.
+description: Review an F# change for C#-shaped code before you finish it. Use when writing, porting from C#, or reviewing F# that returns tuples, uses out parameters or bool * value pairs, chains if/elif on discrete values, uses let mutable with loops, indexes lists by position, makes several passes over one collection, builds code text by string concatenation, or returns Result with a string error.
 compatibility: The proof script requires the .NET 10 SDK and PowerShell 7.2 or later. scripts/global.json selects .NET 10.
 ---
 
@@ -123,9 +123,29 @@ Each item shows the shape to find and the shape to use. [references/EXAMPLES.md]
     let xml = XElement(XName.Get "item", XAttribute(XName.Get "sku", sku)).ToString()
     ```
 
+11. **An error union, not `string`, in `Result`.** A caller cannot match on a `string` error, and the compiler cannot tell the caller about a new case. Give each failure a union case with typed payloads. When the errors of several functions compose, or a nested union needs `Result.mapError` at each call, use [fsharp-iwsam-errors](../fsharp-iwsam-errors/SKILL.md) instead. A case does not hold raw input that can contain a secret, such as a URL with user info.
+
+    ```fsharp
+    // Before
+    let parsePort (raw: string) : Result<int, string> =
+        match Int32.TryParse raw with
+        | true, p when p > 0 && p < 65536 -> Ok p
+        | true, _ -> Error "Port is out of range"
+        | _ -> Error "Port is not a number"
+    // After
+    type PortError =
+        | NotANumber
+        | OutOfRange of value: int
+    let parsePort (raw: string) : Result<int, PortError> =
+        match Int32.TryParse raw with
+        | true, p when p > 0 && p < 65536 -> Ok p
+        | true, p -> Error (OutOfRange p)
+        | _ -> Error NotANumber
+    ```
+
 ## Steps
 
-1. List each tuple return, `bool * value` pair, out parameter, `if`/`elif` chain, `let mutable`, `for` or `while` loop, list index, chained collection pass, `let!` followed by `match`, `static member` with a computed value, and string-built code in your diff.
+1. List each tuple return, `bool * value` pair, out parameter, `if`/`elif` chain, `let mutable`, `for` or `while` loop, list index, chained collection pass, `let!` followed by `match`, `static member` with a computed value, string-built code, and `Result` with a `string` error in your diff.
    Done when each item is on the list.
 2. For each item, apply the checklist entry, or keep it and state the reason. Valid reasons: a measured hot path, a .NET API that requires the shape, or an ordered numeric range for `if`/`elif`.
 3. Run the code and its tests again. The public behavior must not change.
@@ -139,5 +159,6 @@ pwsh ./scripts/run.ps1
 ```
 
 The script runs each before form and each after form and checks that they give the same result.
+It shows that a caller can match each error union case, and that a `string` error gives only text.
 It also shows that `static member X = expr` runs `expr` on each access and `static member val` runs it once.
 It fails when an expected result does not occur.

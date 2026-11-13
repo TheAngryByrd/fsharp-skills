@@ -34,7 +34,7 @@ try {
         if (($surface -join "`n") -cne ($again -join "`n")) { $failures += 'public-surface.ps1 output is not stable between two runs.' }
 
         Assert-Line 'abstract type is public' $surface 'type Sample.Email' $true
-        Assert-Line 'constructor function is public' $surface 'Sample.EmailModule | static create(input: System.String) : Microsoft.FSharp.Core.FSharpResult<Sample.Email, System.String>' $true
+        Assert-Line 'constructor function is public' $surface 'Sample.EmailModule | static create(input: System.String) : Microsoft.FSharp.Core.FSharpResult<Sample.Email, Sample.EmailError>' $true
         Assert-Line 'accessor is public' $surface 'Sample.EmailModule | static value(email: Sample.Email) : System.String' $true
         Assert-Line 'helper left out of the .fsi is hidden' $surface 'Sample.EmailModule | static normalize(input: System.String) : System.String' $false
         Assert-Line 'internal helper is hidden' $surface 'Sample.EmailModule | static isValid(input: System.String) : System.Boolean' $false

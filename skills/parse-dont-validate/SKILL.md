@@ -23,7 +23,7 @@ Use distinct types when exchanging two primitive values would cause an error. Re
 
 Use constrained types for range or format guarantees. Enforce smart constructors through private representations or `.fsi` signatures.
 
-Return `Result<DomainValue, ParseError>` when callers need failure details. Use `option` when absence gives sufficient information.
+Return `Result<DomainValue, ParseError>` when callers need failure details. Make `ParseError` a union with one case for each failure, or an IWSAM leaf when errors compose across functions ([fsharp-iwsam-errors](../fsharp-iwsam-errors/SKILL.md)). Do not use `string` as the error type, because a caller cannot match on it. Use `option` when absence gives sufficient information.
 
 Represent a non-empty collection with a required head and a tail. Use units of measure for dimensions, not range constraints.
 
