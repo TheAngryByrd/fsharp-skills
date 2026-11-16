@@ -33,6 +33,8 @@ Keep the C# shape and state the reason when one of these applies:
 - A .NET API requires the shape, for example an interface method with an `out` parameter, or a `byref` for a `Span` API.
 - A two-value tuple with different types and an obvious meaning, for example `List.partition` output or a local `let ok, value = ...`, can stay a tuple.
 - Ordered numeric ranges read well as `if`/`elif`. `match` with `when` guards does not add exhaustiveness for ranges.
+- A `match` with one or two `when` guards can keep them. A match on a tuple with two cases, such as `Ok xs, Ok x` and `Error e, _`, can also stay.
+- A `match` that the change does not touch stays as it is. Do not rewrite unrelated code to add active patterns.
 
 ## Mutable bound in branches
 

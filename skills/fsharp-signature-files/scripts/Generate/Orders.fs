@@ -2,6 +2,7 @@ module Shop.Orders
 
 let private taxRate = 0.2m
 
+[<System.ComponentModel.Description(@"C:\temp\orders")>]
 let roundPrice (price: decimal) = System.Math.Round(price, 2)
 
 /// The order total with tax, rounded to cents.

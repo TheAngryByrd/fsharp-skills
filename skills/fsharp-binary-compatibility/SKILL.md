@@ -36,7 +36,11 @@ repeat it.
 2. **On a type member, add an overload.** A new optional parameter (`?currency`)
    keeps source compatibility, but it replaces the old method, and an old app gets
    `MissingMethodException` (`member-optional`). Keep the old member and add a
-   second `static member` or method with the new parameter.
+   second `static member` or method with the new parameter. The new overload must not
+   make an existing call ambiguous. `Send(Uri)` beside `Send(string)` makes C#
+   `Send(null)` fail with CS0121 and an unannotated F# call fail with FS0041.
+   [fsharp-library-api-design](../fsharp-library-api-design/SKILL.md) proves these
+   results and gives the call shapes to test.
 3. **Write explicit types on each public function**, or use a `.fsi` file. A body
    change can change the inferred signature, for example `int` to `'a`, or `seq` to
    `list`. Each one gives `MissingMethodException` (`infer-generic`,
@@ -66,9 +70,10 @@ repeat it.
    a Release app also copies a plain `let` value and keeps the old value
    (`literal-value`, `plain-default`).
 8. **Know that Release builds also copy small non-inline functions.** The F# compiler
-   puts optimization data in the library DLL, and a consumer that is built in
-   Release copies small public function bodies from it. An old app then keeps the
-   old body (`body-inlined`). A copied body can also call a changed member: an app
+   puts optimization data in the library DLL, and an F# consumer that is built in
+   Release copies small public function bodies from it, also through a
+   `ProjectReference`. An old app then keeps the old body (`body-inlined`). C#
+   consumers do not copy bodies. A copied body can also call a changed member: an app
    that only called a small `line` factory got `MissingMethodException` for the
    record constructor (`record-inlined`). A library that must take body changes
    with no consumer rebuild needs `--nooptimizationdata` from its first release:
@@ -196,3 +201,8 @@ fails when a result differs from the `// expect` line in the case's `Consumer.fs
 It then checks package validation, the FSharp.Core dependency, the Roslyn analyzer
 claim, and `sig-diff.ps1`. Use `-Case <name>` to run only some cases. With `-Case`,
 the runner does not run these tool proofs.
+
+Two statements in rule 8 are not proofs of this runner. The copy through a
+`ProjectReference` comes from a test with SDK 10.0.404. The C# result comes from the
+`SmallFunctionBodyChange` proof of
+[fsharp-library-api-design](../fsharp-library-api-design/SKILL.md).

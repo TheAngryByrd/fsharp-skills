@@ -171,4 +171,34 @@ let outOfRangeValue raw =
 check "A caller matches the error union case and gets its typed payload" (Some 70000) (outOfRangeValue "70000")
 check "A string error gives the caller only text" (Error "Port is out of range") (parsePortBefore "70000")
 
+// 12: when guards on a tuple of values, then named active patterns.
+let shippingBefore (country: string option) (weightKg: decimal) =
+    match country, weightKg with
+    | None, _ -> 0m
+    | Some c, w when c = "US" && w <= 1m -> 5m
+    | Some c, w when c = "US" -> 5m + (w - 1m) * 2m
+    | Some _, w when w <= 1m -> 15m
+    | Some _, w -> 15m + (w - 1m) * 4m
+
+let (|Pickup|Domestic|International|) (country: string option) =
+    match country with
+    | None -> Pickup
+    | Some "US" -> Domestic
+    | Some _ -> International
+
+let (|Light|Heavy|) (weightKg: decimal) =
+    if weightKg <= 1m then Light else Heavy(weightKg - 1m)
+
+let shippingAfter country weightKg =
+    match country, weightKg with
+    | Pickup, _ -> 0m
+    | Domestic, Light -> 5m
+    | Domestic, Heavy extra -> 5m + extra * 2m
+    | International, Light -> 15m
+    | International, Heavy extra -> 15m + extra * 4m
+
+for country in [ None; Some "US"; Some "DE" ] do
+    for weight in [ 0.5m; 1m; 3m ] do
+        check (sprintf "The active patterns give the same rate as the guards for %A and %M kg" country weight) (shippingBefore country weight) (shippingAfter country weight)
+
 if failures > 0 then exit 1
