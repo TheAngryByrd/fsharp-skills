@@ -39,9 +39,15 @@ Parameters:
 | `-SkipNative` | off | Graders mark native-exe checks as skipped. |
 | `-Isolate` | off | Each run gets an empty home directory. See [Isolation](#isolation). |
 | `-OutputRoot` | `<temp>/skill-evals` | Parent directory for results. |
-| `-DryRun` | off | Prints the agent commands and does not start agents. |
+| `-DryRun` | off | Prints the agent commands and does not start agents. A dry run does not list MCP servers, so its Codex commands do not show the per-server overrides, and its opencode commands do not show `OPENCODE_CONFIG_CONTENT`. |
 
 The runner runs agents one at a time.
+
+### Before a sweep
+
+- Send one short prompt to each Claude model, for example `claude -p --model sonnet "Reply with ok"`. A Claude target can retry a rate-limited request for a long time and print nothing in `claude -p`. The runner uses `--output-format stream-json --verbose`, so `transcript.jsonl` shows each `rate_limit_event` with its `status`.
+- Run opencode targets in their own sweep. Free opencode models (`opencode/*-free`) share one account quota with every opencode session on the machine. When the quota runs out, `opencode run` prints nothing until the runner timeout.
+- Before you count a timed-out opencode run as a model failure, search `~/.local/share/opencode/log/opencode.log` for the run's session id (`sessionID` in `transcript.jsonl`). A line with that `session.id` and `AI_APICallError: Free usage limit reached` shows a quota stall. Report the run as a quota stall, not as a failure of the model. When `transcript.jsonl` is empty, search the log lines from the time of the run. With `-Isolate`, the log is in `<run>/home/.local/share/opencode/log/`.
 
 ## Workspaces
 
@@ -50,11 +56,13 @@ Each run has its own directory under `<OutputRoot>/<run-id>/rNNN/`:
 - `ws/`: the agent's workspace. It holds `TASK.md`, the task input files, and the agent's output.
 - `transcript.jsonl` and `stderr.txt`: the agent's JSON event stream and error output.
 - `grade/grading.json`: the grader's checks.
-- `run.json`: the run's settings, metrics, checks, skill name, start time, skill commit, and exact model. [Dashboard](#dashboard) describes the last four.
+- `run.json`: the run's settings, metrics, checks, skill name, start time, skill commit, exact model, and `mcpServers`. [Dashboard](#dashboard) describes the skill name, start time, skill commit, and exact model. [MCP servers](#mcp-servers) describes `mcpServers`.
 
 For a run with the skill, the runner copies the skill to `ws/.claude/skills/<skill>-eval/` and `ws/.agents/skills/<skill>-eval/`. Claude Code reads the first folder, Codex reads the second, and opencode reads both. The runner also changes the `name:` line to `<skill>-eval`. A global copy of the same skill can be an older version, and the distinct name keeps it from standing in for the version under test.
 
 The workspace is in the temp directory, not in the repository. MSBuild and `dotnet` read `Directory.*.props` and `global.json` files from parent directories. A workspace inside a checkout can inherit settings that change the result.
+
+The same rule applies to proof and grader projects that you build inside the checkout. A `NuGet.Config` with package source mapping, a `Directory.Build.targets`, or a `Directory.Packages.props` above the checkout changes their restore and build. Build such a project from a temp copy. As an alternative, put three files next to it: an empty `Directory.Build.targets`, an empty `Directory.Packages.props`, and a `nuget.config` with `<clear />`. Before a commit, check `git status` for a new `packages.lock.json`.
 
 Results go to `<run-id>/summary.md` and `<run-id>/results.json`. The summary shows the counted runs, pass rate, skipped checks, time, tokens, mean turns, and mean failed builds for each target, task, and mode. It also lists each check with its result in both modes.
 
@@ -128,6 +136,8 @@ The runner records the exact model in `resolvedModel`:
 - Codex: the `-m` value, or `model` from `~/.codex/config.toml` (`$CODEX_HOME/config.toml` when `CODEX_HOME` is set). It adds `model_reasoning_effort` from the same file. With `-Isolate` and no `-m` value, the model is unknown, and the export needs `-ResolvedModel`. The model is also unknown when `config.toml` has a top-level `profile` key of any value form and there is no `-m` value, because the profile can change the model. The runner reads `model` and `model_reasoning_effort` as basic strings (`"..."`) or literal strings (`'...'`). The runner reads the Codex and opencode model before it starts the agent, so a change of `config.toml` during the run does not change the label.
 - opencode: the target model text. The transcript does not record the model.
 
+Name the exact model of each target in each result table, issue comment, and pull request description that reports eval results. Use `resolvedModel`, not the target label alone.
+
 The runner also records `skill`, `startedAt` (UTC), `skillCommit` (`git rev-parse HEAD`), and `skillDirty` in each `run.json`. The runner reads `skillCommit` and `skillDirty` again for each run, just before the agent starts, so a change during a long batch shows in the runs that follow it. `skillDirty` is `true` when `git status --porcelain` prints a line for `skills/<skill>`, `evals/<skill>`, or `evals/lib`. These paths hold the skill, its tasks and graders, and the shared runner and grader code. `grade-evals.ps1` keeps these fields, so a result folder that you grade again keeps the commit of its runs.
 
 ### Build the page
@@ -182,16 +192,30 @@ The script exits with code 1 and lists each failed check.
 
 ## Isolation
 
-By default, agents run with your normal configuration. Runs without the skill can then load global skills on the same subject. The runner reads the `description` of each global skill and warns when it matches the eval's `contaminationKeywords`.
+By default, agents run with your normal configuration, except for MCP servers (see [MCP servers](#mcp-servers)). Runs without the skill can then load global skills on the same subject. The runner reads the `description` of each global skill and warns when it matches the eval's `contaminationKeywords`.
 
 - Claude Code runs without the skill use `--disable-slash-commands`, which disables all skills. Claude Code runs with the skill can still load the global copies.
 - Codex runs disable each matching global skill outside `~/.claude/skills` with `-c skills.config=[{path='...',enabled=false}]`.
-- opencode runs deny each matching global skill by name through `OPENCODE_CONFIG_CONTENT`.
+- opencode runs deny each matching global skill by name through `OPENCODE_CONFIG_CONTENT`. opencode applies the last permission rule that matches, so the runner puts its deny rules and the `skill` key last. Before each run, the runner reads the rule list of the default agent with `opencode --pure debug agent <name>` and applies the same last-match rule. When a hidden skill is not denied, for example because a configuration file has `"*": "allow"` after the skill name, the runner stops.
 - The runner records `globalSkillUsed` when a transcript shows that the agent loaded a global copy.
 
 With `-Isolate`, each run uses an empty home directory. The runner sets `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, and `CODEX_HOME` to that directory. Agents then cannot read your saved logins. Supply credentials as environment variables. Claude Code reads `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. Codex reads `CODEX_API_KEY`. opencode reads the key of its provider. Providers that need a saved login, such as `github-copilot` in opencode, do not work with `-Isolate`. `NUGET_PACKAGES` keeps pointing at your NuGet cache.
 
 opencode runs use `--pure`, which disables external plugins. Plugins can start background processes that keep running after the agent exits.
+
+### MCP servers
+
+Each target agent runs with no MCP servers, with and without `-Isolate`. An MCP server, such as a shared memory store, can hold notes that an earlier eval run wrote about the task. A run without the skill can then pass because of those notes.
+
+- Claude Code: `--strict-mcp-config` with no `--mcp-config`. After the run, the runner copies the `mcp_servers` list of the `init` event in `transcript.jsonl` to `mcpServers` in `run.json`. When the list is not empty, the runner writes `run-stopped.json` in place of `run.json`, does not grade the run, and stops the sweep. The export and `grade-evals.ps1` read only `run.json`, so they skip the stopped run.
+- Codex: `-c features.plugins=false`, and `-c mcp_servers.<name>.enabled=false` for each server that `codex -c features.plugins=false mcp list --json` lists. Codex merges a `-c` value with `config.toml`, so `-c mcp_servers={}` keeps every server. A plugin server is not in `config.toml`, so the plugin setting turns it off. A server name must contain only letters, digits, `_`, and `-`.
+- opencode: `--pure`, and `{"mcp":{"<name>":{"enabled":false}}}` in `OPENCODE_CONFIG_CONTENT` for each server that `opencode --pure debug config` lists. The same variable also holds the skill deny list. When `OPENCODE_CONFIG_CONTENT` is already set, the runner merges these settings into its value and keeps the other settings. When the runner cannot merge (the value is not a JSON object, or `mcp` or `permission` is not an object), it stops.
+
+The runner lists the servers with the run's environment and workspace, so `-Isolate` reads the isolated configuration. For Codex and opencode, it lists the servers again with the overrides. It does this once for each agent before the first run, and again before each run. When a server is still on, or a list command fails, the runner stops.
+
+`mcpServers` in `run.json` has two sources. For Claude Code, it is the `init` list of the run. For Codex and opencode, it is the result of the check before the run, so it is always empty in a run that started. The export does not keep `mcpServers`.
+
+When the runner stops in the middle of a sweep, it still writes `summary.md` and `results.json` for the runs that finished, and then reports the error. On a machine that installs Codex with the Volta shim, Codex does not start with `-Isolate`: the shim fails with `Could not determine LocalAppData directory`. The runner stops at the first check.
 
 ## Skill use
 
@@ -308,6 +332,12 @@ The rubric function has tests with a fake judge. They do not call a model:
 
 ```powershell
 pwsh ./evals/tests/Rubric.Tests.ps1
+```
+
+The agent argument tests check the MCP flags of each agent, the parse of each MCP server list, and the Claude `init` event. They do not start an agent:
+
+```powershell
+pwsh ./evals/tests/Agents.Tests.ps1
 ```
 
 ## fsharp-native-aot tasks

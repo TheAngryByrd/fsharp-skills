@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+Import-Module (Join-Path $PSScriptRoot 'Grading.psm1') -Force
 
 $AgentMessage = 'Read TASK.md in the current directory and complete the task it describes. Work only inside the current directory.'
 
@@ -93,27 +94,194 @@ function Get-AgentMessage {
 
 function Get-AgentArguments {
     param([Parameter(Mandatory)]$Target, [Parameter(Mandatory)][string]$Workspace, [Parameter(Mandatory)][string]$Message,
-        [switch]$WithSkill, [object[]]$HiddenSkills = @())
+        [switch]$WithSkill, [object[]]$HiddenSkills = @(), [string[]]$McpServers = @(), [string]$InheritedOpencodeConfig = $env:OPENCODE_CONFIG_CONTENT)
+    $mcpOff = @(Get-McpOffArguments -Agent $Target.Agent -McpServers $McpServers)
     switch ($Target.Agent) {
         'claude' {
-            $a = @('-p', '--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions', '--no-session-persistence')
+            $a = @('-p', '--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions', '--no-session-persistence') + $mcpOff
             if ($Target.Model) { $a += @('--model', $Target.Model) }
             if (-not $WithSkill) { $a += '--disable-slash-commands' }
-            @{ Args = $a; Stdin = $Message }
+            @{ Args = $a; Stdin = $Message; Environment = @{} }
         }
         'codex' {
-            $a = @('exec', '--json', '--skip-git-repo-check', '--sandbox', 'danger-full-access', '--ephemeral')
+            $a = @('exec', '--json', '--skip-git-repo-check', '--sandbox', 'danger-full-access', '--ephemeral') + $mcpOff
             if ($Target.Model) { $a += @('-m', $Target.Model) }
             $files = @($HiddenSkills | Where-Object { $_.SkillFile -notmatch '[\\/]\.claude[\\/]' } | ForEach-Object { $_.SkillFile.Replace('\', '/') })
             if ($files.Count) { $a += @('-c', ('skills.config=[' + (($files | ForEach-Object { "{path='$_',enabled=false}" }) -join ',') + ']')) }
-            @{ Args = $a + '-'; Stdin = $Message }
+            @{ Args = $a + '-'; Stdin = $Message; Environment = @{} }
         }
         'opencode' {
             $a = @('run', '--format', 'json', '--auto', '--pure', '--dir', $Workspace)
             if ($Target.Model) { $a += @('-m', $Target.Model) }
-            @{ Args = $a + $Message; Stdin = '' }
+            $names = @($HiddenSkills | ForEach-Object Name | Select-Object -Unique)
+            $environment = @{}
+            if ($names.Count -or $McpServers.Count) {
+                $config = Merge-OpencodeConfig -Inherited $InheritedOpencodeConfig -DenySkills $names -McpServers $McpServers
+                $environment.OPENCODE_CONFIG_CONTENT = $config | ConvertTo-Json -Depth 32 -Compress
+            }
+            @{ Args = $a + $Message; Stdin = ''; Environment = $environment }
         }
     }
+}
+
+function Merge-OpencodeConfig {
+    param([string]$Inherited, [string[]]$DenySkills = @(), [string[]]$McpServers = @())
+    $config = [ordered]@{}
+    if ($Inherited) {
+        try { $config = ConvertFrom-Json -InputObject $Inherited -AsHashtable -Depth 32 } catch { throw "OPENCODE_CONFIG_CONTENT is not JSON, so the runner cannot add its MCP and skill settings to it." }
+        if ($config -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT is not a JSON object, so the runner cannot add its MCP and skill settings to it.' }
+    }
+    if ($DenySkills.Count) {
+        if (-not $config.Contains('permission')) { $config.permission = [ordered]@{} }
+        if ($config.permission -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT has a permission value that is not an object.' }
+        $skill = if ($config.permission.Contains('skill')) { $config.permission.skill } else { [ordered]@{} }
+        if ($skill -is [string]) { $skill = [ordered]@{ '*' = $skill } }
+        if ($skill -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT has a permission.skill value that is not a string or an object.' }
+        # opencode applies the last matching permission rule, so the denies and the skill key go last.
+        foreach ($n in $DenySkills) {
+            $skill.Remove($n)
+            $skill[$n] = 'deny'
+        }
+        $config.permission.Remove('skill')
+        $config.permission.skill = $skill
+    }
+    if ($McpServers.Count) {
+        if (-not $config.Contains('mcp')) { $config.mcp = [ordered]@{} }
+        if ($config.mcp -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT has an mcp value that is not an object.' }
+        foreach ($n in $McpServers) {
+            if ($config.mcp.Contains($n) -and $config.mcp[$n] -is [System.Collections.IDictionary]) { $config.mcp[$n].enabled = $false }
+            else { $config.mcp[$n] = [ordered]@{ enabled = $false } }
+        }
+    }
+    $config
+}
+
+function Test-OpencodeWildcard {
+    # Mirrors Wildcard.match in opencode packages/opencode/src/util/wildcard.ts.
+    param([string]$Text, [string]$Pattern)
+    $Text = $Text.Replace('\', '/')
+    $Pattern = $Pattern.Replace('\', '/')
+    $escaped = [regex]::Replace($Pattern, '[.+^${}()|\[\]\\]', { param($m) '\' + $m.Value }).Replace('*', '.*').Replace('?', '.')
+    if ($escaped.EndsWith(' .*')) { $escaped = $escaped.Substring(0, $escaped.Length - 3) + '( .*)?' }
+    $options = [Text.RegularExpressions.RegexOptions]::Singleline
+    if ($IsWindows) { $options = $options -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase }
+    [regex]::IsMatch($Text, '^' + $escaped + '$', $options)
+}
+
+function Get-OpencodeSkillAction {
+    # Mirrors Permission.evaluate in opencode: the last rule that matches wins, and no match means "ask".
+    param([object[]]$Rules = @(), [Parameter(Mandatory)][string]$Skill)
+    $action = 'ask'
+    foreach ($r in $Rules) {
+        if ((Test-OpencodeWildcard 'skill' "$($r.permission)") -and (Test-OpencodeWildcard $Skill "$($r.pattern)")) { $action = "$($r.action)" }
+    }
+    $action
+}
+
+function Assert-OpencodeSkillDeny {
+    param([Parameter(Mandatory)][string]$Workspace, [hashtable]$Environment = @{}, [string[]]$DenySkills = @())
+    if (-not $DenySkills.Count) { return }
+    $configText = Invoke-AgentCli -Agent opencode -Arguments @('--pure', 'debug', 'config') -Workspace $Workspace -Environment $Environment
+    $config = ConvertFrom-Json -InputObject $configText -Depth 32
+    $agent = if ($config.PSObject.Properties['default_agent'] -and "$($config.default_agent)") { "$($config.default_agent)" } else { 'build' }
+    $text = Invoke-AgentCli -Agent opencode -Arguments @('--pure', 'debug', 'agent', $agent) -Workspace $Workspace -Environment $Environment
+    $start = $text.IndexOf('{')
+    $info = $null
+    if ($start -ge 0) { try { $info = ConvertFrom-Json -InputObject $text.Substring($start) -Depth 32 } catch { } }
+    if ($null -eq $info -or -not $info.PSObject.Properties['permission']) { throw "The opencode agent '$agent' description has no permission list. It starts with: $(Get-TextStart $text)" }
+    $allowed = @($DenySkills | Where-Object { (Get-OpencodeSkillAction -Rules @($info.permission) -Skill $_) -ne 'deny' })
+    if ($allowed.Count) { throw "opencode agent '$agent' still allows these hidden skills: $($allowed -join ', '). A later permission rule in a configuration file overrides the runner's deny. Remove that rule or run with -Isolate." }
+}
+
+function Get-McpOffArguments {
+    param([Parameter(Mandatory)][string]$Agent, [string[]]$McpServers = @())
+    switch ($Agent) {
+        'claude' { @('--strict-mcp-config') }
+        'codex' {
+            # Codex merges -c values into config.toml, so mcp_servers={} keeps every server. A plugin server is not in config.toml and fails with "invalid transport" when named.
+            $a = @('-c', 'features.plugins=false')
+            foreach ($n in $McpServers) {
+                if ($n -cnotmatch '^[A-Za-z0-9_-]+$') { throw "Codex MCP server name '$n' cannot go in a -c key. Remove it from config.toml or run with -Isolate." }
+                $a += @('-c', "mcp_servers.$n.enabled=false")
+            }
+            $a
+        }
+        default { @() }
+    }
+}
+
+function Get-TextStart([AllowEmptyString()][string]$Text, [int]$Length = 200) {
+    if ($Text.Length -le $Length) { $Text } else { $Text.Substring(0, $Length) + '...' }
+}
+
+function ConvertFrom-McpList {
+    param([Parameter(Mandatory)][string]$Agent, [AllowEmptyString()][string]$Text)
+    $data = $null
+    try { $data = ConvertFrom-Json -InputObject $Text -Depth 32 -NoEnumerate } catch { }
+    if ($null -eq $data) { throw "The $Agent MCP server list is not JSON. It starts with: $(Get-TextStart $Text)" }
+    switch ($Agent) {
+        'codex' {
+            foreach ($s in @($data)) {
+                if ($null -eq $s -or -not $s.PSObject.Properties['name'] -or -not "$($s.name)") { throw "A Codex MCP server entry has no name. The list starts with: $(Get-TextStart $Text)" }
+                $enabled = -not ($s.PSObject.Properties['enabled'] -and $s.enabled -eq $false)
+                [pscustomobject]@{ Name = "$($s.name)"; Enabled = $enabled }
+            }
+        }
+        'opencode' {
+            if ($data -isnot [System.Management.Automation.PSCustomObject]) { throw "The opencode configuration is not a JSON object. It starts with: $(Get-TextStart $Text)" }
+            $mcp = if ($data.PSObject.Properties['mcp']) { $data.mcp } else { $null }
+            if ($null -eq $mcp) { return }
+            foreach ($p in $mcp.PSObject.Properties) {
+                $enabled = -not ($null -ne $p.Value -and $p.Value.PSObject.Properties['enabled'] -and $p.Value.enabled -eq $false)
+                [pscustomobject]@{ Name = $p.Name; Enabled = $enabled }
+            }
+        }
+        default { throw "No MCP server list for agent '$Agent'." }
+    }
+}
+
+function Invoke-AgentCli {
+    param([Parameter(Mandatory)][string]$Agent, [Parameter(Mandatory)][string[]]$Arguments, [Parameter(Mandatory)][string]$Workspace,
+        [hashtable]$Environment = @{}, [int]$TimeoutSeconds = 120)
+    $r = Invoke-Capture -FilePath (Resolve-AgentCommand $Agent) -Arguments $Arguments -WorkingDirectory $Workspace -TimeoutSeconds $TimeoutSeconds -Environment $Environment
+    if ($r.TimedOut) { throw "'$Agent $($Arguments -join ' ')' did not exit in $TimeoutSeconds seconds." }
+    if ($r.ExitCode -ne 0) { throw "'$Agent $($Arguments -join ' ')' exited with code $($r.ExitCode). Its error output starts with: $(Get-TextStart $r.Stderr)" }
+    $r.Stdout
+}
+
+function Get-McpServerList {
+    param([Parameter(Mandatory)][string]$Agent, [Parameter(Mandatory)][string]$Workspace, [hashtable]$Environment = @{}, [string[]]$McpServers = @())
+    switch ($Agent) {
+        'codex' {
+            $a = @(Get-McpOffArguments -Agent codex -McpServers $McpServers) + @('mcp', 'list', '--json')
+            ConvertFrom-McpList -Agent codex -Text (Invoke-AgentCli -Agent codex -Arguments $a -Workspace $Workspace -Environment $Environment)
+        }
+        'opencode' {
+            ConvertFrom-McpList -Agent opencode -Text (Invoke-AgentCli -Agent opencode -Arguments @('--pure', 'debug', 'config') -Workspace $Workspace -Environment $Environment)
+        }
+        default { @() }
+    }
+}
+
+function Get-McpServersOff {
+    param([Parameter(Mandatory)]$Target, [Parameter(Mandatory)][string]$Workspace, [hashtable]$Environment = @{}, [object[]]$HiddenSkills = @())
+    if ($Target.Agent -eq 'claude') { return @() }
+    $names = @(Get-McpServerList -Agent $Target.Agent -Workspace $Workspace -Environment $Environment | ForEach-Object Name | Select-Object -Unique)
+    $spec = Get-AgentArguments -Target $Target -Workspace $Workspace -Message '-' -HiddenSkills $HiddenSkills -McpServers $names
+    $checkEnvironment = @{} + $Environment
+    foreach ($key in $spec.Environment.Keys) { $checkEnvironment[$key] = $spec.Environment[$key] }
+    $left = @(Get-McpServerList -Agent $Target.Agent -Workspace $Workspace -Environment $checkEnvironment -McpServers $names | Where-Object Enabled | ForEach-Object Name)
+    if ($left.Count) { throw "$($Target.Agent) still starts these MCP servers: $($left -join ', '). A target agent must run with no MCP servers." }
+    if ($Target.Agent -eq 'opencode') {
+        Assert-OpencodeSkillDeny -Workspace $Workspace -Environment $checkEnvironment -DenySkills @($HiddenSkills | ForEach-Object Name | Select-Object -Unique)
+    }
+    $names
+}
+
+function Get-ClaudeMcpServers {
+    param([Parameter(Mandatory)][string]$TranscriptPath)
+    $init = ConvertFrom-JsonLines $TranscriptPath | Where-Object { $_.PSObject.Properties['subtype'] -and $_.subtype -eq 'init' } | Select-Object -First 1
+    if ($init -and $init.PSObject.Properties['mcp_servers']) { @($init.mcp_servers | ForEach-Object { "$($_.name)" }) }
 }
 
 function Join-Arguments {
@@ -135,11 +303,18 @@ function Invoke-Agent {
         [int]$TimeoutMinutes = 30,
         [switch]$DryRun
     )
-    $spec = Get-AgentArguments -Target $Target -Workspace $Workspace -Message $Message -WithSkill:$WithSkill -HiddenSkills $HiddenSkills
+    $environment = @{}
+    $servers = @()
+    if (-not $DryRun) {
+        if ($Isolate) { $environment = Get-IsolatedEnvironment -RunDir $RunDir }
+        $servers = @(Get-McpServersOff -Target $Target -Workspace $Workspace -Environment $environment -HiddenSkills $HiddenSkills)
+    }
+    $spec = Get-AgentArguments -Target $Target -Workspace $Workspace -Message $Message -WithSkill:$WithSkill -HiddenSkills $HiddenSkills -McpServers $servers
+    foreach ($key in $spec.Environment.Keys) { $environment[$key] = $spec.Environment[$key] }
     $argLine = Join-Arguments $spec.Args
     $result = [ordered]@{
         Command = "$($Target.Agent) $argLine"; ExitCode = $null; TimedOut = $false; Seconds = 0
-        Stdout = Join-Path $RunDir 'transcript.jsonl'; Stderr = Join-Path $RunDir 'stderr.txt'
+        Stdout = Join-Path $RunDir 'transcript.jsonl'; Stderr = Join-Path $RunDir 'stderr.txt'; McpServers = @()
     }
     if ($DryRun) { return [pscustomobject]$result }
 
@@ -154,13 +329,6 @@ function Invoke-Agent {
         RedirectStandardError  = $result.Stderr
         NoNewWindow            = $true
         PassThru               = $true
-    }
-    $environment = if ($Isolate) { Get-IsolatedEnvironment -RunDir $RunDir } else { @{} }
-    $names = @($HiddenSkills | ForEach-Object Name | Select-Object -Unique)
-    if ($Target.Agent -eq 'opencode' -and $names.Count) {
-        $deny = [ordered]@{}
-        foreach ($n in $names) { $deny[$n] = 'deny' }
-        $environment.OPENCODE_CONFIG_CONTENT = @{ permission = @{ skill = $deny } } | ConvertTo-Json -Depth 5 -Compress
     }
     if ($environment.Count) { $startArgs.Environment = $environment }
     $result.Environment = @($environment.Keys)
@@ -177,6 +345,7 @@ function Invoke-Agent {
     $clock.Stop()
     $result.Seconds = $clock.Elapsed.TotalSeconds
     $result.ExitCode = if ($p.HasExited) { $p.ExitCode } else { $null }
+    if ($Target.Agent -eq 'claude') { $result.McpServers = @(Get-ClaudeMcpServers -TranscriptPath $result.Stdout) }
     [pscustomobject]$result
 }
 
@@ -484,4 +653,6 @@ function Find-EvalSpec {
 }
 
 Export-ModuleMember -Function ConvertTo-AgentTarget, Get-AgentMessage, Get-InstallName, Resolve-AgentCommand, Find-ConflictingSkills, Install-Skill,
-    Initialize-WorkspaceRepo, Invoke-Agent, Get-AgentMetrics, Get-ResolvedModel, Get-SkillProvenance, Find-EvalSpec, Write-Summary
+    Initialize-WorkspaceRepo, Invoke-Agent, Get-AgentMetrics, Get-ResolvedModel, Get-SkillProvenance, Find-EvalSpec, Write-Summary,
+    Get-AgentArguments, Get-McpOffArguments, ConvertFrom-McpList, Get-ClaudeMcpServers, Get-McpServersOff, Get-IsolatedEnvironment,
+    Get-OpencodeSkillAction

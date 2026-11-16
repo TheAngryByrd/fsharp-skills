@@ -62,6 +62,11 @@ finally {
 
 $done = Invoke-Capture pwsh @('-NoProfile', '-Command', 'Write-Output a; [Console]::Error.WriteLine("b"); exit 3') -TimeoutSeconds 60
 Assert-That 'a time limit keeps the exit code, stdout, and stderr of a command that ends' ($done.ExitCode -eq 3 -and -not $done.TimedOut -and $done.Lines -contains 'a' -and $done.Lines -contains 'b') ($done | ConvertTo-Json)
+$withEnv = Invoke-Capture pwsh @('-NoProfile', '-Command', 'Write-Output $env:CAPTURE_TEST_VALUE; [Console]::Error.WriteLine("e")') -TimeoutSeconds 60 -Environment @{ CAPTURE_TEST_VALUE = 'from-env' }
+Assert-That 'a time limit run gets the extra environment and keeps stdout apart from stderr' ($withEnv.Stdout.Trim() -eq 'from-env' -and $withEnv.Stderr.Trim() -eq 'e' -and -not $env:CAPTURE_TEST_VALUE) ($withEnv | ConvertTo-Json)
+$threw = $false
+try { $null = Invoke-Capture pwsh @('-NoProfile', '-Command', 'exit 0') -Environment @{ X = '1' } } catch { $threw = $true }
+Assert-That 'an extra environment with no time limit is refused' $threw
 $pidFile = Join-Path ([IO.Path]::GetTempPath()) ("invoke-capture-" + [guid]::NewGuid().ToString('n') + '.txt')
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $hung = Invoke-Capture pwsh @('-NoProfile', '-Command', "Write-Output started; `$c = Start-Process pwsh -ArgumentList '-NoProfile','-Command','Start-Sleep 600' -NoNewWindow -PassThru; Set-Content '$pidFile' `$c.Id; Start-Sleep 600") -TimeoutSeconds 10

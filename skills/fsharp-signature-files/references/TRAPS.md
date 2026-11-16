@@ -1,7 +1,7 @@
 # Signature file diagnostics
 
 Each row has a folder in [../scripts/breaks](../scripts/breaks). The proof runner checks
-the codes with SDK 10.0.401.
+the codes with SDK 10.0.401 and later.
 
 | Folder | Cause | Diagnostics | Build |
 |---|---|---|---|
@@ -19,6 +19,8 @@ the codes with SDK 10.0.401.
 | `HiddenUnionCase` | a caller uses a union case whose type is abstract in the `.fsi` | FS0039 | fails, as intended |
 | `HiddenHelper` | a caller uses a value that the `.fsi` leaves out | FS0039 | fails, as intended |
 | `PrivateRepresentation` | a caller builds a record whose `.fsi` says `= private { ... }` | FS1093 | fails, as intended |
+| `AttributeBackslash` | the `.fs` has `@"C:\temp\orders"` as an attribute argument, and the `.fsi` has `"C:\temp\orders"`, as `--allsigs` writes it | warning FS1200 "the attribute arguments differ" | passes. The FS1200 text says that the compiled code keeps only the `.fsi` attribute. |
+| `AttributeQuote` | the `.fs` has `"say \"hi\""` as an attribute argument, and the `.fsi` has `"say "hi""`, as `--allsigs` writes it | FS0003, FS0267, FS0428, and warning FS1200 | fails |
 
 ## Fixes
 
@@ -30,6 +32,9 @@ the codes with SDK 10.0.401.
 - FS0034 with inline flags: make both files agree.
 - FS0193 "requires a value": define the value in the `.fs`, or remove the `val`.
 - FS0238 and FS0248: move the `.fsi` item before its `.fs` item.
+- FS1200 after `--allsigs` or `--sig`, or FS0003 on an attribute line: replace the string
+  argument in the `.fsi` with the literal from the `.fs`. The compiler writes the value
+  with no escapes. Do not delete the attribute from the `.fsi`.
 - A union case whose name equals the type name (`type Email = Email of string`) gives
   FS0800 "Invalid use of a type name" in a caller, not FS0039, when the type is abstract.
 

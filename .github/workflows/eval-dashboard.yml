@@ -36,6 +36,10 @@ jobs:
         shell: pwsh
         run: ./evals/tests/Metrics.Tests.ps1
 
+      - name: Test the agent arguments
+        shell: pwsh
+        run: ./evals/tests/Agents.Tests.ps1
+
       - name: Build the dashboard
         shell: pwsh
         run: ./evals/dashboard/build-dashboard.ps1 -OutDir _site

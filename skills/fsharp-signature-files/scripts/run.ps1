@@ -72,7 +72,7 @@ try {
     if ($genExit -ne 0 -or -not (Test-Path $orderFsi)) { $failures += "--allsigs did not write Orders.fsi next to Orders.fs:`n$($genOut -join "`n")" }
     else {
         $generated = Get-Content -Raw $orderFsi
-        foreach ($want in 'val roundPrice:', 'val private taxRate:', 'val total:', '/// The order total') {
+        foreach ($want in 'val roundPrice:', 'val private taxRate:', 'val total:', '/// The order total', '[<System.ComponentModel.Description ("C:\temp\orders")>]') {
             $has = $generated.Contains($want)
             Write-Output ("allsigs {0,-48} {1}" -f $want, $(if ($has) { 'present' } else { 'missing' }))
             if (-not $has) { $failures += "--allsigs output does not contain '$want':`n$generated" }
@@ -90,6 +90,7 @@ try {
         $codes = @([regex]::Matches($source, '//\s*expect:\s*(FS\d+)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
         $texts = @([regex]::Matches($source, '//\s*expect-text:\s*(.+?)\s*$', 'Multiline') | ForEach-Object { $_.Groups[1].Value })
         $expectSuccess = $source -match '//\s*expect-exit:\s*0'
+        $env:FSHARP_SIGNATURE_PROOF_ROOT = Join-Path $artifacts "breaks/$($case.Name)"
         $r = Invoke-Build $dir
         $reported = @([regex]::Matches($r.Text, '(?:error|warning) (FS\d+)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
         Write-Output ("break   {0,-48} exit={1} reported={2} expected={3}" -f $case.Name, $r.ExitCode, ($reported -join ','), ($codes -join ','))

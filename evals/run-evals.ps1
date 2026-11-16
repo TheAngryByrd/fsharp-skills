@@ -57,73 +57,94 @@ if ($contamination.Count -gt 0) {
     Write-Warning 'Codex and opencode runs hide these skills. Claude baselines disable all skills. Claude runs with the skill can still load them.'
 }
 
+if (-not $DryRun) {
+    foreach ($t in @($targets | Where-Object Agent -ne 'claude' | Sort-Object Agent -Unique)) {
+        $preflight = Join-Path $root "preflight-$($t.Agent)"
+        New-Item -ItemType Directory -Force -Path $preflight | Out-Null
+        $preflightEnvironment = if ($Isolate) { Get-IsolatedEnvironment -RunDir $preflight } else { @{} }
+        $null = Get-McpServersOff -Target $t -Workspace $preflight -Environment $preflightEnvironment -HiddenSkills $contamination
+    }
+}
+
 $results = [System.Collections.Generic.List[object]]::new()
 $n = 0
-foreach ($t in $targets) {
-    foreach ($taskSpec in $tasks) {
-        foreach ($m in $modes) {
-            for ($i = 1; $i -le $Runs; $i++) {
-                $n++
-                $runDir = Join-Path $root ('r{0:d3}' -f $n)
-                $ws = Join-Path $runDir 'ws'
-                New-Item -ItemType Directory -Force -Path $ws | Out-Null
-                foreach ($f in @($taskSpec.files)) { Copy-Item (Join-Path $evalDir $f) $ws -Recurse }
-                Set-Content -Path (Join-Path $ws 'TASK.md') -Value $taskSpec.prompt -Encoding utf8
-                if ($m -eq 'with') { Install-Skill -SkillDir $skillDir -Workspace $ws }
-                Initialize-WorkspaceRepo $ws
+$stopped = $null
+try {
+    foreach ($t in $targets) {
+        foreach ($taskSpec in $tasks) {
+            foreach ($m in $modes) {
+                for ($i = 1; $i -le $Runs; $i++) {
+                    $n++
+                    $runDir = Join-Path $root ('r{0:d3}' -f $n)
+                    $ws = Join-Path $runDir 'ws'
+                    New-Item -ItemType Directory -Force -Path $ws | Out-Null
+                    foreach ($f in @($taskSpec.files)) { Copy-Item (Join-Path $evalDir $f) $ws -Recurse }
+                    Set-Content -Path (Join-Path $ws 'TASK.md') -Value $taskSpec.prompt -Encoding utf8
+                    if ($m -eq 'with') { Install-Skill -SkillDir $skillDir -Workspace $ws }
+                    Initialize-WorkspaceRepo $ws
 
-                $label = "$($t.Label) | $($taskSpec.id) | $m skill | run $i"
-                Write-Host "[$n] $label"
-                $provenance = Get-SkillProvenance -Repo $repo -Skill $Skill
-                $info = [ordered]@{
-                    id = $n; target = $t.Label; agent = $t.Agent; model = $t.Model; task = $taskSpec.id
-                    mode = $m; run = $i; invocation = $Invocation; workspace = $ws; isolated = [bool]$Isolate
-                    skill = $Skill; startedAt = Format-IsoUtc ([DateTime]::UtcNow); skillCommit = $provenance.SkillCommit; skillDirty = $provenance.SkillDirty
+                    $label = "$($t.Label) | $($taskSpec.id) | $m skill | run $i"
+                    Write-Host "[$n] $label"
+                    $provenance = Get-SkillProvenance -Repo $repo -Skill $Skill
+                    $info = [ordered]@{
+                        id = $n; target = $t.Label; agent = $t.Agent; model = $t.Model; task = $taskSpec.id
+                        mode = $m; run = $i; invocation = $Invocation; workspace = $ws; isolated = [bool]$Isolate
+                        skill = $Skill; startedAt = Format-IsoUtc ([DateTime]::UtcNow); skillCommit = $provenance.SkillCommit; skillDirty = $provenance.SkillDirty
+                    }
+
+                    if ($t.Agent -ne 'claude') { $info.resolvedModel = Get-ResolvedModel -Agent $t.Agent -Model $t.Model -Isolated:$Isolate }
+                    $message = Get-AgentMessage -Skill $Skill -WithSkill:($m -eq 'with') -Invocation $Invocation
+                    $agentRun = Invoke-Agent -Target $t -Workspace $ws -RunDir $runDir -Message $message -WithSkill:($m -eq 'with') -HiddenSkills $contamination `
+                        -Isolate:$Isolate -TimeoutMinutes $TimeoutMinutes -DryRun:$DryRun
+                    $info.command = $agentRun.Command
+                    if ($DryRun) { $results.Add([pscustomobject]$info); continue }
+
+                    $metrics = Get-AgentMetrics -Agent $t.Agent -TranscriptPath $agentRun.Stdout -Skill $Skill
+                    $info.exitCode = $agentRun.ExitCode
+                    $info.timedOut = $agentRun.TimedOut
+                    $info.seconds = [math]::Round($agentRun.Seconds, 1)
+                    $info.inputTokens = $metrics.InputTokens
+                    $info.outputTokens = $metrics.OutputTokens
+                    $info.costUsd = $metrics.CostUsd
+                    $info.turns = $metrics.Turns
+                    $info.failedBuilds = $metrics.FailedBuilds
+                    $info.mcpServers = @($agentRun.McpServers)
+                    if ($info.mcpServers.Count) {
+                        $info | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $runDir 'run-stopped.json') -Encoding utf8
+                        throw "Run $n started these MCP servers: $($info.mcpServers -join ', '). A target agent must run with no MCP servers. The sweep stops, and this run does not count."
+                    }
+                    if ($t.Agent -eq 'claude') { $info.resolvedModel = Get-ResolvedModel -Agent claude -Model $t.Model -TranscriptPath $agentRun.Stdout }
+                    $info.skillUsed = $metrics.SkillUsed
+                    $info.globalSkillUsed = $metrics.GlobalSkillUsed
+
+                    $gradeDir = Join-Path $runDir 'grade'
+                    New-Item -ItemType Directory -Force -Path $gradeDir | Out-Null
+                    $grader = Join-Path $evalDir $taskSpec.grader
+                    try {
+                        & $grader -Workspace $ws -OutDir $gradeDir -SkipNative:$SkipNative | Out-Null
+                        $checks = @(Get-Content -Raw (Join-Path $gradeDir 'grading.json') | ConvertFrom-Json)
+                    } catch {
+                        $checks = @([pscustomobject]@{ text = 'Grader completed'; passed = $false; evidence = "$_" })
+                    }
+                    $info.checks = $checks
+                    $info.passed = @($checks | Where-Object { $_.passed -eq $true }).Count
+                    $info.failed = @($checks | Where-Object { $_.passed -eq $false }).Count
+                    $info.skipped = @($checks | Where-Object { $null -eq $_.passed }).Count
+                    $info | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $runDir 'run.json') -Encoding utf8
+                    if ($m -eq 'with' -and -not $info.skillUsed) { Write-Warning "    The agent did not load $(Get-InstallName $Skill) in this run." }
+                    if ($info.globalSkillUsed) { Write-Warning "    The agent loaded a global copy of $Skill in this run." }
+                    Write-Host ("    {0}/{1} checks passed, {2} skipped, {3}s, {4} turns, {5} failed builds, skill used: {6}" -f $info.passed, ($info.passed + $info.failed), $info.skipped, $info.seconds,
+                        $info.turns, $info.failedBuilds, $info.skillUsed)
+                    $results.Add([pscustomobject]$info)
                 }
-
-                if ($t.Agent -ne 'claude') { $info.resolvedModel = Get-ResolvedModel -Agent $t.Agent -Model $t.Model -Isolated:$Isolate }
-                $message = Get-AgentMessage -Skill $Skill -WithSkill:($m -eq 'with') -Invocation $Invocation
-                $agentRun = Invoke-Agent -Target $t -Workspace $ws -RunDir $runDir -Message $message -WithSkill:($m -eq 'with') -HiddenSkills $contamination `
-                    -Isolate:$Isolate -TimeoutMinutes $TimeoutMinutes -DryRun:$DryRun
-                $info.command = $agentRun.Command
-                if ($DryRun) { $results.Add([pscustomobject]$info); continue }
-
-                $metrics = Get-AgentMetrics -Agent $t.Agent -TranscriptPath $agentRun.Stdout -Skill $Skill
-                $info.exitCode = $agentRun.ExitCode
-                $info.timedOut = $agentRun.TimedOut
-                $info.seconds = [math]::Round($agentRun.Seconds, 1)
-                $info.inputTokens = $metrics.InputTokens
-                $info.outputTokens = $metrics.OutputTokens
-                $info.costUsd = $metrics.CostUsd
-                $info.turns = $metrics.Turns
-                $info.failedBuilds = $metrics.FailedBuilds
-                if ($t.Agent -eq 'claude') { $info.resolvedModel = Get-ResolvedModel -Agent claude -Model $t.Model -TranscriptPath $agentRun.Stdout }
-                $info.skillUsed = $metrics.SkillUsed
-                $info.globalSkillUsed = $metrics.GlobalSkillUsed
-
-                $gradeDir = Join-Path $runDir 'grade'
-                New-Item -ItemType Directory -Force -Path $gradeDir | Out-Null
-                $grader = Join-Path $evalDir $taskSpec.grader
-                try {
-                    & $grader -Workspace $ws -OutDir $gradeDir -SkipNative:$SkipNative | Out-Null
-                    $checks = @(Get-Content -Raw (Join-Path $gradeDir 'grading.json') | ConvertFrom-Json)
-                } catch {
-                    $checks = @([pscustomobject]@{ text = 'Grader completed'; passed = $false; evidence = "$_" })
-                }
-                $info.checks = $checks
-                $info.passed = @($checks | Where-Object { $_.passed -eq $true }).Count
-                $info.failed = @($checks | Where-Object { $_.passed -eq $false }).Count
-                $info.skipped = @($checks | Where-Object { $null -eq $_.passed }).Count
-                $info | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $runDir 'run.json') -Encoding utf8
-                if ($m -eq 'with' -and -not $info.skillUsed) { Write-Warning "    The agent did not load $(Get-InstallName $Skill) in this run." }
-                if ($info.globalSkillUsed) { Write-Warning "    The agent loaded a global copy of $Skill in this run." }
-                Write-Host ("    {0}/{1} checks passed, {2} skipped, {3}s, {4} turns, {5} failed builds, skill used: {6}" -f $info.passed, ($info.passed + $info.failed), $info.skipped, $info.seconds,
-                    $info.turns, $info.failedBuilds, $info.skillUsed)
-                $results.Add([pscustomobject]$info)
             }
         }
     }
+} catch {
+    $stopped = $_
 }
+
+if ($stopped -and ($DryRun -or $results.Count -eq 0)) { throw $stopped }
 
 if ($DryRun) {
     $results | ForEach-Object { "[$($_.id)] $($_.target) | $($_.task) | $($_.mode)`n    $($_.command)" }
@@ -136,3 +157,4 @@ Write-Host ''
 Write-Host $summary
 Write-Host ''
 Write-Host "Results: $root"
+if ($stopped) { throw $stopped }

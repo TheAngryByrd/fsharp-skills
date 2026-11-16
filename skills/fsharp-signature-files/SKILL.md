@@ -1,6 +1,6 @@
 ---
 name: fsharp-signature-files
-description: Add F# signature files (.fsi) that expose only the API that callers use, and hide type representations so callers must use constructor functions. Covers generating a starting point with --allsigs or --sig, removing helpers from the .fsi, abstract types, attribute and interface mismatches (FS3888, FS0050), signature errors (FS0034, FS0193, FS0238), XML docs, InternalsVisibleTo for tests, and a public-surface check of the built assembly. Use when the user asks for signature files, a smaller public API, encapsulation of an F# library, or hidden constructors.
+description: Add F# signature files (.fsi) that expose only the API that callers use, and hide type representations so callers must use constructor functions. Covers generating a starting point with --allsigs or --sig, removing helpers from the .fsi, abstract types, attribute and interface mismatches (FS3888, FS0050, FS1200), signature errors (FS0034, FS0193, FS0238), XML docs, InternalsVisibleTo for tests, and a public-surface check of the built assembly. Use when the user asks for signature files, a smaller public API, encapsulation of an F# library, or hidden constructors.
 compatibility: The proof and the public-surface script require the .NET 10 SDK and PowerShell 7.4 or later. Results were verified with SDK 10.0.401 on win-x64. FS3888 comes from the F# 10 compiler.
 ---
 
@@ -80,6 +80,11 @@ Measure this before you claim a speed-up. See
      `[<Sealed>]` on a class in the `.fsi` only gives FS0297. A missing `RequireQualifiedAccess` gives
      only warning FS3888. The build passes, and callers can use the cases without the
      type name.
+   - Check each string argument of an attribute in the generated `.fsi`. `--allsigs`
+     and `--sig` write the value between plain quotes, with no escapes. A value with a backslash,
+     such as `@"C:\temp\orders"`, changes. The build passes with warning FS1200, and the
+     compiled attribute gets the changed value from the `.fsi`. A value with a double
+     quote fails with FS0003. Replace each such argument with the literal from the `.fs`.
    - List each implemented interface: `interface System.IDisposable`. Without it, you
      get warning FS0050, and `use` in a caller fails with FS0193.
    - Put XML doc comments in the `.fsi`. When a `.fsi` exists, a doc comment that is
@@ -111,3 +116,9 @@ These rules come from the F# documentation and are not bundled proofs: a `val in
 in a `.fsi` makes the function body part of the contract, so callers must build again
 when the body changes. Use `inline` in a `.fsi` only when the function needs it, for
 example for statically resolved type parameters.
+
+These results come from a test with SDK 10.0.404 and are not bundled proofs. `--sig`
+writes attribute strings in the same form as `--allsigs`. You can delete an attribute
+from the `.fsi` and keep it in the `.fs`. Then the DLL keeps the attribute, but F#
+callers do not see it. A caller of an `[<Obsolete>]` value gets no warning FS0044.
+So fix a changed string argument. Do not delete the attribute.

@@ -1,6 +1,6 @@
 ---
 name: fsharp-idiom-review
-description: Review an F# change for C#-shaped code before you finish it. Use when writing, porting from C#, or reviewing F# that returns tuples, uses out parameters or bool * value pairs, chains if/elif on discrete values, uses let mutable with loops, indexes lists by position, makes several passes over one collection, builds code text by string concatenation, or returns Result with a string error.
+description: Review an F# change for C#-shaped code before you finish it. Use when writing, porting from C#, or reviewing F# that returns tuples, uses out parameters or bool * value pairs, chains if/elif on discrete values, uses let mutable with loops, indexes lists by position, makes several passes over one collection, builds code text by string concatenation, matches with more than two when guards or on a tuple with more than two cases, or returns Result with a string error.
 compatibility: The proof script requires the .NET 10 SDK and PowerShell 7.2 or later. scripts/global.json selects .NET 10.
 ---
 
@@ -143,11 +143,34 @@ Each item shows the shape to find and the shape to use. [references/EXAMPLES.md]
         | _ -> Error NotANumber
     ```
 
+12. **Named active patterns, not more than two `when` guards or a tuple match with more than two cases.** A `match` can have more than two `when` guards, or match a tuple with more than two cases, such as the `Before` block below. Then name each case in the words of the domain with an active pattern. With a complete active pattern (`(|A|B|)`), the compiler checks that the match covers each case. Change only the matches in your diff.
+
+    ```fsharp
+    // Before
+    match country, weightKg with
+    | None, _ -> 0m
+    | Some c, w when c = "US" && w <= 1m -> 5m
+    | Some c, w when c = "US" -> 5m + (w - 1m) * 2m
+    | Some _, w when w <= 1m -> 15m
+    | Some _, w -> 15m + (w - 1m) * 4m
+    // After
+    let (|Pickup|Domestic|International|) country =
+        match country with None -> Pickup | Some "US" -> Domestic | Some _ -> International
+    let (|Light|Heavy|) weightKg = if weightKg <= 1m then Light else Heavy(weightKg - 1m)
+
+    match country, weightKg with
+    | Pickup, _ -> 0m
+    | Domestic, Light -> 5m
+    | Domestic, Heavy extra -> 5m + extra * 2m
+    | International, Light -> 15m
+    | International, Heavy extra -> 15m + extra * 4m
+    ```
+
 ## Steps
 
-1. List each tuple return, `bool * value` pair, out parameter, `if`/`elif` chain, `let mutable`, `for` or `while` loop, list index, chained collection pass, `let!` followed by `match`, `static member` with a computed value, string-built code, and `Result` with a `string` error in your diff.
+1. List each tuple return, `bool * value` pair, out parameter, `if`/`elif` chain, `let mutable`, `for` or `while` loop, list index, chained collection pass, `let!` followed by `match`, `static member` with a computed value, string-built code, `Result` with a `string` error, and `match` with more than two `when` guards or a tuple with more than two cases in your diff.
    Done when each item is on the list.
-2. For each item, apply the checklist entry, or keep it and state the reason. Valid reasons: a measured hot path, a .NET API that requires the shape, or an ordered numeric range for `if`/`elif`.
+2. For each item, apply the checklist entry, or keep it and state the reason. Valid reasons: a measured hot path, a .NET API that requires the shape, an ordered numeric range for `if`/`elif`, or a match on a tuple with two cases.
 3. Run the code and its tests again. The public behavior must not change.
 
 ## Verify
@@ -161,4 +184,5 @@ pwsh ./scripts/run.ps1
 The script runs each before form and each after form and checks that they give the same result.
 It shows that a caller can match each error union case, and that a `string` error gives only text.
 It also shows that `static member X = expr` runs `expr` on each access and `static member val` runs it once.
+It checks that the active patterns give the same result as the `when` guards for each input.
 It fails when an expected result does not occur.
