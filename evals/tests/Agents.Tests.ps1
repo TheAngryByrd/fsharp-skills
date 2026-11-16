@@ -38,13 +38,25 @@ foreach ($bad in 'my.server', 'a b', "x'y", 'a=b') {
     Assert-True $threw "a Codex MCP server name '$bad' that cannot be a -c key stops the run"
 }
 
-$opencode = Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode:opencode/demo-free') -Workspace $ws -Message 'm' -McpServers @('memorizer', 'my.server') -HiddenSkills $hidden
+$opencode = Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode:opencode/demo-free') -Workspace $ws -Message 'm' -McpServers @('memorizer', 'my.server') -HiddenSkills $hidden -InheritedOpencodeConfig ''
 $config = $opencode.Environment.OPENCODE_CONFIG_CONTENT | ConvertFrom-Json
 Assert-True ($config.mcp.memorizer.enabled -eq $false -and $config.mcp.'my.server'.enabled -eq $false) 'an opencode run turns off each configured MCP server' $opencode.Environment.OPENCODE_CONFIG_CONTENT
 Assert-True ($config.permission.skill.'fsharp-demo' -eq 'deny') 'an opencode run keeps the global skill deny next to the MCP block' $opencode.Environment.OPENCODE_CONFIG_CONTENT
 Assert-True ($opencode.Args -contains '--pure') 'an opencode run does not load external plugins' ($opencode.Args -join ' ')
-$plain = Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -Message 'm'
+$plain = Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -Message 'm' -InheritedOpencodeConfig '{"model":"a/b"}'
 Assert-True ($plain.Environment.Count -eq 0) 'an opencode run with nothing to turn off sets no config content' ($plain.Environment.Keys -join ',')
+$inherited = '{"model":"a/b","mcp":{"memorizer":{"type":"remote","url":"http://localhost:5000/mcp"},"kept":{"type":"local"}},"permission":{"bash":"ask","skill":{"other":"deny"}}}'
+$merged = (Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -Message 'm' -McpServers @('memorizer') -HiddenSkills $hidden -InheritedOpencodeConfig $inherited).Environment.OPENCODE_CONFIG_CONTENT | ConvertFrom-Json
+Assert-True ($merged.model -eq 'a/b' -and $merged.permission.bash -eq 'ask' -and $merged.mcp.kept.type -eq 'local') 'an opencode run keeps the settings of an inherited OPENCODE_CONFIG_CONTENT' ($merged | ConvertTo-Json -Depth 8 -Compress)
+Assert-True ($merged.mcp.memorizer.enabled -eq $false -and $merged.mcp.memorizer.url -eq 'http://localhost:5000/mcp') 'an inherited MCP server keeps its fields and gets enabled false' ($merged | ConvertTo-Json -Depth 8 -Compress)
+Assert-True ($merged.permission.skill.other -eq 'deny' -and $merged.permission.skill.'fsharp-demo' -eq 'deny') 'an inherited skill deny list keeps its entries next to the hidden skills' ($merged | ConvertTo-Json -Depth 8 -Compress)
+$stringSkill = (Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -Message 'm' -HiddenSkills $hidden -InheritedOpencodeConfig '{"permission":{"skill":"allow"}}').Environment.OPENCODE_CONFIG_CONTENT | ConvertFrom-Json
+Assert-True ($stringSkill.permission.skill.'*' -eq 'allow' -and $stringSkill.permission.skill.'fsharp-demo' -eq 'deny') 'an inherited skill permission string becomes the default next to the denies' ($stringSkill | ConvertTo-Json -Depth 8 -Compress)
+foreach ($bad in 'not json', '[1]', '{"mcp":[1]}') {
+    $threw = $false
+    try { $null = Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -Message 'm' -McpServers @('memorizer') -InheritedOpencodeConfig $bad } catch { $threw = $true }
+    Assert-True $threw "an inherited OPENCODE_CONFIG_CONTENT '$bad' that the runner cannot merge stops the run"
+}
 
 $codexList = ConvertFrom-McpList -Agent codex -Text '[{"name":"memorizer","enabled":true},{"name":"docs","enabled":false}]'
 Assert-True ($codexList.Count -eq 2 -and $codexList[0].Name -eq 'memorizer' -and $codexList[0].Enabled -and -not $codexList[1].Enabled) 'the Codex list gives each server and its state' ($codexList | ConvertTo-Json -Compress)

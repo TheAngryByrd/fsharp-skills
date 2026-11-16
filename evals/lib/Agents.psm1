@@ -94,7 +94,7 @@ function Get-AgentMessage {
 
 function Get-AgentArguments {
     param([Parameter(Mandatory)]$Target, [Parameter(Mandatory)][string]$Workspace, [Parameter(Mandatory)][string]$Message,
-        [switch]$WithSkill, [object[]]$HiddenSkills = @(), [string[]]$McpServers = @())
+        [switch]$WithSkill, [object[]]$HiddenSkills = @(), [string[]]$McpServers = @(), [string]$InheritedOpencodeConfig = $env:OPENCODE_CONFIG_CONTENT)
     $mcpOff = @(Get-McpOffArguments -Agent $Target.Agent -McpServers $McpServers)
     switch ($Target.Agent) {
         'claude' {
@@ -113,22 +113,42 @@ function Get-AgentArguments {
         'opencode' {
             $a = @('run', '--format', 'json', '--auto', '--pure', '--dir', $Workspace)
             if ($Target.Model) { $a += @('-m', $Target.Model) }
-            $config = [ordered]@{}
             $names = @($HiddenSkills | ForEach-Object Name | Select-Object -Unique)
-            if ($names.Count) {
-                $deny = [ordered]@{}
-                foreach ($n in $names) { $deny[$n] = 'deny' }
-                $config.permission = @{ skill = $deny }
+            $environment = @{}
+            if ($names.Count -or $McpServers.Count) {
+                $config = Merge-OpencodeConfig -Inherited $InheritedOpencodeConfig -DenySkills $names -McpServers $McpServers
+                $environment.OPENCODE_CONFIG_CONTENT = $config | ConvertTo-Json -Depth 32 -Compress
             }
-            if ($McpServers.Count) {
-                $off = [ordered]@{}
-                foreach ($n in $McpServers) { $off[$n] = @{ enabled = $false } }
-                $config.mcp = $off
-            }
-            $environment = if ($config.Count) { @{ OPENCODE_CONFIG_CONTENT = $config | ConvertTo-Json -Depth 5 -Compress } } else { @{} }
             @{ Args = $a + $Message; Stdin = ''; Environment = $environment }
         }
     }
+}
+
+function Merge-OpencodeConfig {
+    param([string]$Inherited, [string[]]$DenySkills = @(), [string[]]$McpServers = @())
+    $config = [ordered]@{}
+    if ($Inherited) {
+        try { $config = ConvertFrom-Json -InputObject $Inherited -AsHashtable -Depth 32 } catch { throw "OPENCODE_CONFIG_CONTENT is not JSON, so the runner cannot add its MCP and skill settings to it." }
+        if ($config -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT is not a JSON object, so the runner cannot add its MCP and skill settings to it.' }
+    }
+    if ($DenySkills.Count) {
+        if (-not $config.Contains('permission')) { $config.permission = [ordered]@{} }
+        if ($config.permission -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT has a permission value that is not an object.' }
+        $skill = if ($config.permission.Contains('skill')) { $config.permission.skill } else { [ordered]@{} }
+        if ($skill -is [string]) { $skill = [ordered]@{ '*' = $skill } }
+        if ($skill -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT has a permission.skill value that is not a string or an object.' }
+        foreach ($n in $DenySkills) { $skill[$n] = 'deny' }
+        $config.permission.skill = $skill
+    }
+    if ($McpServers.Count) {
+        if (-not $config.Contains('mcp')) { $config.mcp = [ordered]@{} }
+        if ($config.mcp -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT has an mcp value that is not an object.' }
+        foreach ($n in $McpServers) {
+            if ($config.mcp.Contains($n) -and $config.mcp[$n] -is [System.Collections.IDictionary]) { $config.mcp[$n].enabled = $false }
+            else { $config.mcp[$n] = [ordered]@{ enabled = $false } }
+        }
+    }
+    $config
 }
 
 function Get-McpOffArguments {
