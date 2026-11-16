@@ -19,6 +19,30 @@ The `fsharp-verify-api` tasks do not meet that need yet. The evidence is one run
 - Both graders check that the package version did not change. An agent can otherwise downgrade to the version that it remembers.
 - `evals/fsharp-verify-api/tests/Grader.Tests.ps1` runs both graders against committed good, old API, stub, and downgrade workspaces, and checks each check result by name.
 
+## Contamination
+
+Target agents run with no MCP servers in every mode. A shared memory server can hold notes that an earlier eval agent wrote about the fixtures, and a later baseline can pass from those notes. `-Isolate` is not the default, because it needs API keys and does not keep saved logins.
+
+| Agent | Setting | Check |
+|---|---|---|
+| Claude Code | `--strict-mcp-config` | `mcp_servers` of the `init` event, copied to `mcpServers` in `run.json`. A non-empty list stops the sweep after that run. |
+| Codex | `-c features.plugins=false` and `-c mcp_servers.<name>.enabled=false` for each listed name | `codex ... mcp list --json` before the sweep and before each run. The runner stops when a server is on. |
+| opencode | `--pure` and `mcp.<name>.enabled=false` in `OPENCODE_CONFIG_CONTENT` | `opencode --pure debug config` before the sweep and before each run. The runner stops when a server is on. |
+
+Lessons:
+
+- Codex merges `-c mcp_servers={}` with `config.toml`, so it turns nothing off. A plugin server cannot be named in `-c`: Codex then fails with `invalid transport`.
+- A model that answers "no MCP tools" is weak evidence. With default settings, Codex named only one of its servers. The control is a request to call a Memorizer tool: the default run calls it, and the run with the overrides cannot.
+- The Codex Volta shim does not start when `USERPROFILE` points at an empty folder (`Could not determine LocalAppData directory`). So Codex does not run with `-Isolate` on a machine that installs Codex with Volta.
+
+```mermaid
+flowchart LR
+    List[List MCP servers with the run environment] --> Off[Build overrides]
+    Off --> Check[List again with overrides]
+    Check -->|a server is on| Stop[Stop the sweep and write the summary of finished runs]
+    Check -->|all off| Run[Start the agent]
+```
+
 ## Graders
 
 Graders run the agent's output, for example as a JIT build and as a native exe.

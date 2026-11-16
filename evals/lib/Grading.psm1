@@ -50,7 +50,9 @@ function Stop-ChildProcess([int]$ParentId, [datetime]$After) {
 }
 
 function Invoke-Capture {
-    param([Parameter(Mandatory)][string]$FilePath, [string[]]$Arguments = @(), [string]$WorkingDirectory = $PWD.Path, [int]$TimeoutSeconds = 0)
+    param([Parameter(Mandatory)][string]$FilePath, [string[]]$Arguments = @(), [string]$WorkingDirectory = $PWD.Path, [int]$TimeoutSeconds = 0,
+        [hashtable]$Environment = @{})
+    if ($Environment.Count -and $TimeoutSeconds -le 0) { throw 'Invoke-Capture needs -TimeoutSeconds with -Environment.' }
     if ($TimeoutSeconds -gt 0) {
         $info = [System.Diagnostics.ProcessStartInfo]::new($FilePath)
         foreach ($a in $Arguments) { $info.ArgumentList.Add($a) }
@@ -58,6 +60,7 @@ function Invoke-Capture {
         $info.RedirectStandardOutput = $true
         $info.RedirectStandardError = $true
         $info.UseShellExecute = $false
+        foreach ($key in $Environment.Keys) { $info.Environment[$key] = "$($Environment[$key])" }
         $clock = [System.Diagnostics.Stopwatch]::StartNew()
         $process = [System.Diagnostics.Process]::Start($info)
         try {
@@ -77,7 +80,9 @@ function Invoke-Capture {
             $text = @($streams | Where-Object IsCompletedSuccessfully | ForEach-Object Result) -join "`n"
             $lines = @($text -split '\r?\n' | Where-Object { $_ -ne '' })
             if ($timedOut) { $lines += "timed out after $TimeoutSeconds seconds: $FilePath $($Arguments -join ' ')" }
-            return [pscustomobject]@{ ExitCode = $(if ($timedOut) { -1 } else { $process.ExitCode }); Lines = $lines; Text = ($lines -join "`n"); TimedOut = $timedOut }
+            $out = if ($stdout.IsCompletedSuccessfully) { $stdout.Result } else { '' }
+            $err = if ($stderr.IsCompletedSuccessfully) { $stderr.Result } else { '' }
+            return [pscustomobject]@{ ExitCode = $(if ($timedOut) { -1 } else { $process.ExitCode }); Lines = $lines; Text = ($lines -join "`n"); TimedOut = $timedOut; Stdout = $out; Stderr = $err }
         } finally {
             $process.Dispose()
         }

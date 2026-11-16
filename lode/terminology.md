@@ -13,7 +13,7 @@
 - Eval - A task that an agent runs with and without a skill, graded by a script.
 - Grader - A script that checks an agent's output and writes `grading.json`.
 - Baseline - An eval run without the skill.
-- Contamination - A global skill on the same subject that a baseline run can load.
+- Contamination - Knowledge outside the task that a baseline run can use: a global skill on the same subject, or an MCP server, such as a shared memory store, that holds notes about the eval task.
 - Rubric - Yes/no questions in an eval task that a judge model answers about the agent's diff.
 - Judge - The separate model command that answers rubric questions. It sees only the diff and the questions.
 - Turn - One agent step in an eval transcript. Each agent counts it differently (see `evals/README.md`).

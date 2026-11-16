@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+Import-Module (Join-Path $PSScriptRoot 'Grading.psm1') -Force
 
 $AgentMessage = 'Read TASK.md in the current directory and complete the task it describes. Work only inside the current directory.'
 
@@ -93,27 +94,129 @@ function Get-AgentMessage {
 
 function Get-AgentArguments {
     param([Parameter(Mandatory)]$Target, [Parameter(Mandatory)][string]$Workspace, [Parameter(Mandatory)][string]$Message,
-        [switch]$WithSkill, [object[]]$HiddenSkills = @())
+        [switch]$WithSkill, [object[]]$HiddenSkills = @(), [string[]]$McpServers = @())
+    $mcpOff = @(Get-McpOffArguments -Agent $Target.Agent -McpServers $McpServers)
     switch ($Target.Agent) {
         'claude' {
-            $a = @('-p', '--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions', '--no-session-persistence')
+            $a = @('-p', '--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions', '--no-session-persistence') + $mcpOff
             if ($Target.Model) { $a += @('--model', $Target.Model) }
             if (-not $WithSkill) { $a += '--disable-slash-commands' }
-            @{ Args = $a; Stdin = $Message }
+            @{ Args = $a; Stdin = $Message; Environment = @{} }
         }
         'codex' {
-            $a = @('exec', '--json', '--skip-git-repo-check', '--sandbox', 'danger-full-access', '--ephemeral')
+            $a = @('exec', '--json', '--skip-git-repo-check', '--sandbox', 'danger-full-access', '--ephemeral') + $mcpOff
             if ($Target.Model) { $a += @('-m', $Target.Model) }
             $files = @($HiddenSkills | Where-Object { $_.SkillFile -notmatch '[\\/]\.claude[\\/]' } | ForEach-Object { $_.SkillFile.Replace('\', '/') })
             if ($files.Count) { $a += @('-c', ('skills.config=[' + (($files | ForEach-Object { "{path='$_',enabled=false}" }) -join ',') + ']')) }
-            @{ Args = $a + '-'; Stdin = $Message }
+            @{ Args = $a + '-'; Stdin = $Message; Environment = @{} }
         }
         'opencode' {
             $a = @('run', '--format', 'json', '--auto', '--pure', '--dir', $Workspace)
             if ($Target.Model) { $a += @('-m', $Target.Model) }
-            @{ Args = $a + $Message; Stdin = '' }
+            $config = [ordered]@{}
+            $names = @($HiddenSkills | ForEach-Object Name | Select-Object -Unique)
+            if ($names.Count) {
+                $deny = [ordered]@{}
+                foreach ($n in $names) { $deny[$n] = 'deny' }
+                $config.permission = @{ skill = $deny }
+            }
+            if ($McpServers.Count) {
+                $off = [ordered]@{}
+                foreach ($n in $McpServers) { $off[$n] = @{ enabled = $false } }
+                $config.mcp = $off
+            }
+            $environment = if ($config.Count) { @{ OPENCODE_CONFIG_CONTENT = $config | ConvertTo-Json -Depth 5 -Compress } } else { @{} }
+            @{ Args = $a + $Message; Stdin = ''; Environment = $environment }
         }
     }
+}
+
+function Get-McpOffArguments {
+    param([Parameter(Mandatory)][string]$Agent, [string[]]$McpServers = @())
+    switch ($Agent) {
+        'claude' { @('--strict-mcp-config') }
+        'codex' {
+            # Codex merges -c values into config.toml, so mcp_servers={} keeps every server. A plugin server is not in config.toml and fails with "invalid transport" when named.
+            $a = @('-c', 'features.plugins=false')
+            foreach ($n in $McpServers) {
+                if ($n -cnotmatch '^[A-Za-z0-9_-]+$') { throw "Codex MCP server name '$n' cannot go in a -c key. Remove it from config.toml or run with -Isolate." }
+                $a += @('-c', "mcp_servers.$n.enabled=false")
+            }
+            $a
+        }
+        default { @() }
+    }
+}
+
+function Get-TextStart([AllowEmptyString()][string]$Text, [int]$Length = 200) {
+    if ($Text.Length -le $Length) { $Text } else { $Text.Substring(0, $Length) + '...' }
+}
+
+function ConvertFrom-McpList {
+    param([Parameter(Mandatory)][string]$Agent, [AllowEmptyString()][string]$Text)
+    $data = $null
+    try { $data = ConvertFrom-Json -InputObject $Text -Depth 32 -NoEnumerate } catch { }
+    if ($null -eq $data) { throw "The $Agent MCP server list is not JSON. It starts with: $(Get-TextStart $Text)" }
+    switch ($Agent) {
+        'codex' {
+            foreach ($s in @($data)) {
+                if ($null -eq $s -or -not $s.PSObject.Properties['name'] -or -not "$($s.name)") { throw "A Codex MCP server entry has no name. The list starts with: $(Get-TextStart $Text)" }
+                $enabled = -not ($s.PSObject.Properties['enabled'] -and $s.enabled -eq $false)
+                [pscustomobject]@{ Name = "$($s.name)"; Enabled = $enabled }
+            }
+        }
+        'opencode' {
+            if ($data -isnot [System.Management.Automation.PSCustomObject]) { throw "The opencode configuration is not a JSON object. It starts with: $(Get-TextStart $Text)" }
+            $mcp = if ($data.PSObject.Properties['mcp']) { $data.mcp } else { $null }
+            if ($null -eq $mcp) { return }
+            foreach ($p in $mcp.PSObject.Properties) {
+                $enabled = -not ($null -ne $p.Value -and $p.Value.PSObject.Properties['enabled'] -and $p.Value.enabled -eq $false)
+                [pscustomobject]@{ Name = $p.Name; Enabled = $enabled }
+            }
+        }
+        default { throw "No MCP server list for agent '$Agent'." }
+    }
+}
+
+function Invoke-AgentCli {
+    param([Parameter(Mandatory)][string]$Agent, [Parameter(Mandatory)][string[]]$Arguments, [Parameter(Mandatory)][string]$Workspace,
+        [hashtable]$Environment = @{}, [int]$TimeoutSeconds = 120)
+    $r = Invoke-Capture -FilePath (Resolve-AgentCommand $Agent) -Arguments $Arguments -WorkingDirectory $Workspace -TimeoutSeconds $TimeoutSeconds -Environment $Environment
+    if ($r.TimedOut) { throw "'$Agent $($Arguments -join ' ')' did not exit in $TimeoutSeconds seconds." }
+    if ($r.ExitCode -ne 0) { throw "'$Agent $($Arguments -join ' ')' exited with code $($r.ExitCode). Its error output starts with: $(Get-TextStart $r.Stderr)" }
+    $r.Stdout
+}
+
+function Get-McpServerList {
+    param([Parameter(Mandatory)][string]$Agent, [Parameter(Mandatory)][string]$Workspace, [hashtable]$Environment = @{}, [string[]]$McpServers = @())
+    switch ($Agent) {
+        'codex' {
+            $a = @(Get-McpOffArguments -Agent codex -McpServers $McpServers) + @('mcp', 'list', '--json')
+            ConvertFrom-McpList -Agent codex -Text (Invoke-AgentCli -Agent codex -Arguments $a -Workspace $Workspace -Environment $Environment)
+        }
+        'opencode' {
+            ConvertFrom-McpList -Agent opencode -Text (Invoke-AgentCli -Agent opencode -Arguments @('--pure', 'debug', 'config') -Workspace $Workspace -Environment $Environment)
+        }
+        default { @() }
+    }
+}
+
+function Get-McpServersOff {
+    param([Parameter(Mandatory)]$Target, [Parameter(Mandatory)][string]$Workspace, [hashtable]$Environment = @{}, [object[]]$HiddenSkills = @())
+    if ($Target.Agent -eq 'claude') { return @() }
+    $names = @(Get-McpServerList -Agent $Target.Agent -Workspace $Workspace -Environment $Environment | ForEach-Object Name | Select-Object -Unique)
+    $spec = Get-AgentArguments -Target $Target -Workspace $Workspace -Message '-' -HiddenSkills $HiddenSkills -McpServers $names
+    $checkEnvironment = @{} + $Environment
+    foreach ($key in $spec.Environment.Keys) { $checkEnvironment[$key] = $spec.Environment[$key] }
+    $left = @(Get-McpServerList -Agent $Target.Agent -Workspace $Workspace -Environment $checkEnvironment -McpServers $names | Where-Object Enabled | ForEach-Object Name)
+    if ($left.Count) { throw "$($Target.Agent) still starts these MCP servers: $($left -join ', '). A target agent must run with no MCP servers." }
+    $names
+}
+
+function Get-ClaudeMcpServers {
+    param([Parameter(Mandatory)][string]$TranscriptPath)
+    $init = ConvertFrom-JsonLines $TranscriptPath | Where-Object { $_.PSObject.Properties['subtype'] -and $_.subtype -eq 'init' } | Select-Object -First 1
+    if ($init -and $init.PSObject.Properties['mcp_servers']) { @($init.mcp_servers | ForEach-Object { "$($_.name)" }) }
 }
 
 function Join-Arguments {
@@ -135,11 +238,18 @@ function Invoke-Agent {
         [int]$TimeoutMinutes = 30,
         [switch]$DryRun
     )
-    $spec = Get-AgentArguments -Target $Target -Workspace $Workspace -Message $Message -WithSkill:$WithSkill -HiddenSkills $HiddenSkills
+    $environment = @{}
+    $servers = @()
+    if (-not $DryRun) {
+        if ($Isolate) { $environment = Get-IsolatedEnvironment -RunDir $RunDir }
+        $servers = @(Get-McpServersOff -Target $Target -Workspace $Workspace -Environment $environment -HiddenSkills $HiddenSkills)
+    }
+    $spec = Get-AgentArguments -Target $Target -Workspace $Workspace -Message $Message -WithSkill:$WithSkill -HiddenSkills $HiddenSkills -McpServers $servers
+    foreach ($key in $spec.Environment.Keys) { $environment[$key] = $spec.Environment[$key] }
     $argLine = Join-Arguments $spec.Args
     $result = [ordered]@{
         Command = "$($Target.Agent) $argLine"; ExitCode = $null; TimedOut = $false; Seconds = 0
-        Stdout = Join-Path $RunDir 'transcript.jsonl'; Stderr = Join-Path $RunDir 'stderr.txt'
+        Stdout = Join-Path $RunDir 'transcript.jsonl'; Stderr = Join-Path $RunDir 'stderr.txt'; McpServers = @()
     }
     if ($DryRun) { return [pscustomobject]$result }
 
@@ -154,13 +264,6 @@ function Invoke-Agent {
         RedirectStandardError  = $result.Stderr
         NoNewWindow            = $true
         PassThru               = $true
-    }
-    $environment = if ($Isolate) { Get-IsolatedEnvironment -RunDir $RunDir } else { @{} }
-    $names = @($HiddenSkills | ForEach-Object Name | Select-Object -Unique)
-    if ($Target.Agent -eq 'opencode' -and $names.Count) {
-        $deny = [ordered]@{}
-        foreach ($n in $names) { $deny[$n] = 'deny' }
-        $environment.OPENCODE_CONFIG_CONTENT = @{ permission = @{ skill = $deny } } | ConvertTo-Json -Depth 5 -Compress
     }
     if ($environment.Count) { $startArgs.Environment = $environment }
     $result.Environment = @($environment.Keys)
@@ -177,6 +280,7 @@ function Invoke-Agent {
     $clock.Stop()
     $result.Seconds = $clock.Elapsed.TotalSeconds
     $result.ExitCode = if ($p.HasExited) { $p.ExitCode } else { $null }
+    if ($Target.Agent -eq 'claude') { $result.McpServers = @(Get-ClaudeMcpServers -TranscriptPath $result.Stdout) }
     [pscustomobject]$result
 }
 
@@ -484,4 +588,5 @@ function Find-EvalSpec {
 }
 
 Export-ModuleMember -Function ConvertTo-AgentTarget, Get-AgentMessage, Get-InstallName, Resolve-AgentCommand, Find-ConflictingSkills, Install-Skill,
-    Initialize-WorkspaceRepo, Invoke-Agent, Get-AgentMetrics, Get-ResolvedModel, Get-SkillProvenance, Find-EvalSpec, Write-Summary
+    Initialize-WorkspaceRepo, Invoke-Agent, Get-AgentMetrics, Get-ResolvedModel, Get-SkillProvenance, Find-EvalSpec, Write-Summary,
+    Get-AgentArguments, Get-McpOffArguments, ConvertFrom-McpList, Get-ClaudeMcpServers, Get-McpServersOff, Get-IsolatedEnvironment
