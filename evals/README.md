@@ -196,7 +196,7 @@ By default, agents run with your normal configuration, except for MCP servers (s
 
 - Claude Code runs without the skill use `--disable-slash-commands`, which disables all skills. Claude Code runs with the skill can still load the global copies.
 - Codex runs disable each matching global skill outside `~/.claude/skills` with `-c skills.config=[{path='...',enabled=false}]`.
-- opencode runs deny each matching global skill by name through `OPENCODE_CONFIG_CONTENT`.
+- opencode runs deny each matching global skill by name through `OPENCODE_CONFIG_CONTENT`. opencode applies the last permission rule that matches, so the runner puts its deny rules and the `skill` key last. Before each run, the runner reads the rule list of the default agent with `opencode --pure debug agent <name>` and applies the same last-match rule. When a hidden skill is not denied, for example because a configuration file has `"*": "allow"` after the skill name, the runner stops.
 - The runner records `globalSkillUsed` when a transcript shows that the agent loaded a global copy.
 
 With `-Isolate`, each run uses an empty home directory. The runner sets `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, and `CODEX_HOME` to that directory. Agents then cannot read your saved logins. Supply credentials as environment variables. Claude Code reads `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. Codex reads `CODEX_API_KEY`. opencode reads the key of its provider. Providers that need a saved login, such as `github-copilot` in opencode, do not work with `-Isolate`. `NUGET_PACKAGES` keeps pointing at your NuGet cache.

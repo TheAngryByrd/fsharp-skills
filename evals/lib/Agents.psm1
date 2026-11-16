@@ -137,7 +137,12 @@ function Merge-OpencodeConfig {
         $skill = if ($config.permission.Contains('skill')) { $config.permission.skill } else { [ordered]@{} }
         if ($skill -is [string]) { $skill = [ordered]@{ '*' = $skill } }
         if ($skill -isnot [System.Collections.IDictionary]) { throw 'OPENCODE_CONFIG_CONTENT has a permission.skill value that is not a string or an object.' }
-        foreach ($n in $DenySkills) { $skill[$n] = 'deny' }
+        # opencode applies the last matching permission rule, so the denies and the skill key go last.
+        foreach ($n in $DenySkills) {
+            $skill.Remove($n)
+            $skill[$n] = 'deny'
+        }
+        $config.permission.Remove('skill')
         $config.permission.skill = $skill
     }
     if ($McpServers.Count) {
@@ -149,6 +154,43 @@ function Merge-OpencodeConfig {
         }
     }
     $config
+}
+
+function Test-OpencodeWildcard {
+    # Mirrors Wildcard.match in opencode packages/opencode/src/util/wildcard.ts.
+    param([string]$Text, [string]$Pattern)
+    $Text = $Text.Replace('\', '/')
+    $Pattern = $Pattern.Replace('\', '/')
+    $escaped = [regex]::Replace($Pattern, '[.+^${}()|\[\]\\]', { param($m) '\' + $m.Value }).Replace('*', '.*').Replace('?', '.')
+    if ($escaped.EndsWith(' .*')) { $escaped = $escaped.Substring(0, $escaped.Length - 3) + '( .*)?' }
+    $options = [Text.RegularExpressions.RegexOptions]::Singleline
+    if ($IsWindows) { $options = $options -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase }
+    [regex]::IsMatch($Text, '^' + $escaped + '$', $options)
+}
+
+function Get-OpencodeSkillAction {
+    # Mirrors Permission.evaluate in opencode: the last rule that matches wins, and no match means "ask".
+    param([object[]]$Rules = @(), [Parameter(Mandatory)][string]$Skill)
+    $action = 'ask'
+    foreach ($r in $Rules) {
+        if ((Test-OpencodeWildcard 'skill' "$($r.permission)") -and (Test-OpencodeWildcard $Skill "$($r.pattern)")) { $action = "$($r.action)" }
+    }
+    $action
+}
+
+function Assert-OpencodeSkillDeny {
+    param([Parameter(Mandatory)][string]$Workspace, [hashtable]$Environment = @{}, [string[]]$DenySkills = @())
+    if (-not $DenySkills.Count) { return }
+    $configText = Invoke-AgentCli -Agent opencode -Arguments @('--pure', 'debug', 'config') -Workspace $Workspace -Environment $Environment
+    $config = ConvertFrom-Json -InputObject $configText -Depth 32
+    $agent = if ($config.PSObject.Properties['default_agent'] -and "$($config.default_agent)") { "$($config.default_agent)" } else { 'build' }
+    $text = Invoke-AgentCli -Agent opencode -Arguments @('--pure', 'debug', 'agent', $agent) -Workspace $Workspace -Environment $Environment
+    $start = $text.IndexOf('{')
+    $info = $null
+    if ($start -ge 0) { try { $info = ConvertFrom-Json -InputObject $text.Substring($start) -Depth 32 } catch { } }
+    if ($null -eq $info -or -not $info.PSObject.Properties['permission']) { throw "The opencode agent '$agent' description has no permission list. It starts with: $(Get-TextStart $text)" }
+    $allowed = @($DenySkills | Where-Object { (Get-OpencodeSkillAction -Rules @($info.permission) -Skill $_) -ne 'deny' })
+    if ($allowed.Count) { throw "opencode agent '$agent' still allows these hidden skills: $($allowed -join ', '). A later permission rule in a configuration file overrides the runner's deny. Remove that rule or run with -Isolate." }
 }
 
 function Get-McpOffArguments {
@@ -230,6 +272,9 @@ function Get-McpServersOff {
     foreach ($key in $spec.Environment.Keys) { $checkEnvironment[$key] = $spec.Environment[$key] }
     $left = @(Get-McpServerList -Agent $Target.Agent -Workspace $Workspace -Environment $checkEnvironment -McpServers $names | Where-Object Enabled | ForEach-Object Name)
     if ($left.Count) { throw "$($Target.Agent) still starts these MCP servers: $($left -join ', '). A target agent must run with no MCP servers." }
+    if ($Target.Agent -eq 'opencode') {
+        Assert-OpencodeSkillDeny -Workspace $Workspace -Environment $checkEnvironment -DenySkills @($HiddenSkills | ForEach-Object Name | Select-Object -Unique)
+    }
     $names
 }
 
@@ -609,4 +654,5 @@ function Find-EvalSpec {
 
 Export-ModuleMember -Function ConvertTo-AgentTarget, Get-AgentMessage, Get-InstallName, Resolve-AgentCommand, Find-ConflictingSkills, Install-Skill,
     Initialize-WorkspaceRepo, Invoke-Agent, Get-AgentMetrics, Get-ResolvedModel, Get-SkillProvenance, Find-EvalSpec, Write-Summary,
-    Get-AgentArguments, Get-McpOffArguments, ConvertFrom-McpList, Get-ClaudeMcpServers, Get-McpServersOff, Get-IsolatedEnvironment
+    Get-AgentArguments, Get-McpOffArguments, ConvertFrom-McpList, Get-ClaudeMcpServers, Get-McpServersOff, Get-IsolatedEnvironment,
+    Get-OpencodeSkillAction

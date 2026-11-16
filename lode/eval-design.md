@@ -33,6 +33,7 @@ Lessons:
 
 - Codex merges `-c mcp_servers={}` with `config.toml`, so it turns nothing off. A plugin server cannot be named in `-c`: Codex then fails with `invalid transport`.
 - A model that answers "no MCP tools" is weak evidence. With default settings, Codex named only one of its servers. The control is a request to call a Memorizer tool: the default run calls it, and the run with the overrides cannot.
+- opencode applies the last matching permission rule (`findLast` in `Permission.evaluate`). A deep merge keeps the key position of a configuration file, so an environment value cannot move a file rule. The runner puts its own rules last and then checks the resolved rule list of the agent.
 - The Codex Volta shim does not start when `USERPROFILE` points at an empty folder (`Could not determine LocalAppData directory`). So Codex does not run with `-Isolate` on a machine that installs Codex with Volta.
 
 ```mermaid

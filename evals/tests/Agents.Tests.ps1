@@ -52,6 +52,24 @@ Assert-True ($merged.mcp.memorizer.enabled -eq $false -and $merged.mcp.memorizer
 Assert-True ($merged.permission.skill.other -eq 'deny' -and $merged.permission.skill.'fsharp-demo' -eq 'deny') 'an inherited skill deny list keeps its entries next to the hidden skills' ($merged | ConvertTo-Json -Depth 8 -Compress)
 $stringSkill = (Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -Message 'm' -HiddenSkills $hidden -InheritedOpencodeConfig '{"permission":{"skill":"allow"}}').Environment.OPENCODE_CONFIG_CONTENT | ConvertFrom-Json
 Assert-True ($stringSkill.permission.skill.'*' -eq 'allow' -and $stringSkill.permission.skill.'fsharp-demo' -eq 'deny') 'an inherited skill permission string becomes the default next to the denies' ($stringSkill | ConvertTo-Json -Depth 8 -Compress)
+$wildcardAfter = '{"permission":{"skill":{"fsharp-demo":"allow","*":"allow"},"*":"allow"}}'
+$ordered = (Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -Message 'm' -HiddenSkills $hidden -InheritedOpencodeConfig $wildcardAfter).Environment.OPENCODE_CONFIG_CONTENT | ConvertFrom-Json -AsHashtable
+Assert-True (@($ordered.permission.skill.Keys)[-1] -eq 'fsharp-demo' -and $ordered.permission.skill['fsharp-demo'] -eq 'deny') 'a hidden skill deny comes after an inherited wildcard allow' ($ordered | ConvertTo-Json -Depth 8 -Compress)
+Assert-True (@($ordered.permission.Keys)[-1] -eq 'skill') 'the skill rules come after an inherited top-level wildcard allow' ($ordered | ConvertTo-Json -Depth 8 -Compress)
+
+$rule = { param($p, $pattern, $action) [pscustomobject]@{ permission = $p; pattern = $pattern; action = $action } }
+$cases = @(
+    @{ Name = 'a deny before a wildcard allow'; Rules = @((& $rule 'skill' 'fsharp-demo' 'deny'), (& $rule 'skill' '*' 'allow')); Expected = 'allow' }
+    @{ Name = 'a deny after a wildcard allow'; Rules = @((& $rule 'skill' '*' 'allow'), (& $rule 'skill' 'fsharp-demo' 'deny')); Expected = 'deny' }
+    @{ Name = 'a top-level wildcard allow after the deny'; Rules = @((& $rule 'skill' 'fsharp-demo' 'deny'), (& $rule '*' '*' 'allow')); Expected = 'allow' }
+    @{ Name = 'a prefix pattern deny'; Rules = @((& $rule 'skill' '*' 'allow'), (& $rule 'skill' 'fsharp-*' 'deny')); Expected = 'deny' }
+    @{ Name = 'a rule for another tool'; Rules = @((& $rule 'bash' '*' 'deny')); Expected = 'ask' }
+)
+foreach ($c in $cases) {
+    $action = Get-OpencodeSkillAction -Rules $c.Rules -Skill 'fsharp-demo'
+    Assert-True ($action -eq $c.Expected) "the opencode last-match rule gives $($c.Expected) for $($c.Name)" $action
+}
+
 foreach ($bad in 'not json', '[1]', '{"mcp":[1]}') {
     $threw = $false
     try { $null = Get-AgentArguments -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -Message 'm' -McpServers @('memorizer') -InheritedOpencodeConfig $bad } catch { $threw = $true }
@@ -118,6 +136,19 @@ try {
         $message = ''
         try { $null = Invoke-Agent -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -RunDir $runDir -Message 'm' -TimeoutMinutes 1 } catch { $message = "$_" }
         Assert-True ($message -like '*exited with code 3*config error*' -and $message.Length -lt 600) 'a failed opencode list stops the run and quotes only the start of its error output' "$($message.Length) characters: $($message.Substring(0, [Math]::Min(200, $message.Length)))"
+
+        $reallow = '[{"permission":"*","pattern":"*","action":"allow"},{"permission":"skill","pattern":"fsharp-demo","action":"deny"},{"permission":"skill","pattern":"*","action":"allow"}]'
+        $denyLast = '[{"permission":"skill","pattern":"*","action":"allow"},{"permission":"skill","pattern":"fsharp-demo","action":"deny"}]'
+        foreach ($case in @(@{ Rules = $reallow; Stops = $true }, @{ Rules = $denyLast; Stops = $false })) {
+            New-FakeCli 'opencode' ("if (`$args -contains 'agent') { Write-Output 'agent build'; Write-Output '{""name"":""build"",""permission"":" + $case.Rules.Replace("'", "''") + "}' } else { Write-Output '{""mcp"":{}}' }")
+            $message = ''
+            try { $null = Get-McpServersOff -Target (ConvertTo-AgentTarget 'opencode') -Workspace $ws -HiddenSkills $hidden } catch { $message = "$_" }
+            if ($case.Stops) {
+                Assert-True ($message -like "*agent 'build' still allows these hidden skills: fsharp-demo*") 'a configuration rule that allows a hidden skill after the deny stops the run' $message
+            } else {
+                Assert-True ($message -eq '') 'a hidden skill whose deny is the last match passes the check' $message
+            }
+        }
 
         $runEvals = Join-Path $PSScriptRoot '../run-evals.ps1'
         $sweep = @{ Skill = 'fsharp-idiom-review'; Task = @('port-order-report'); Mode = 'without'; Runs = 1; TimeoutMinutes = 1 }
